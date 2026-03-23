@@ -23,8 +23,11 @@ dependencies = [
     "redis>=7.3.0",
     "sentence-transformers>=5.3.0",
     "sqlalchemy[asyncio]>=2.0.48",
+    "trafilatura>=2.0.0",
     "unstructured>=0.21.5",
     "uvicorn[standard]>=0.42.0",
+    "youtube-transcript-api>=1.2.4",
+    "yt-dlp>=2026.3.17",
 ]
 
 [dependency-groups]
