@@ -4,33 +4,31 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Suppress verbose logging
 litellm.suppress_debug_info = True
 
-# Fallback chain — Groq → Gemini → Ollama local
+# Fallback chain — fires automatically on rate limit or error
 litellm.fallbacks = [
+    # Complex queries: Groq 70b → Gemini → local 8b
     {"groq/llama-3.3-70b-versatile": [
         "gemini/gemini-2.0-flash-exp",
-        "ollama/llama3.1:8b"
+        "ollama/llama3.1:8b",
     ]},
-    {"groq/llama-3.2-3b-preview": [
-        "ollama/llama3.2:3b"
+    # Simple queries: local 8b → Groq instant (reversed — local first)
+    {"ollama/llama3.1:8b": [
+        "groq/llama-3.1-8b-instant",
     ]},
 ]
 
-# Updated model map — llama-3.2-3b-preview decommissioned, use llama-3.2-1b-preview
 MODEL_MAP = {
-    "simple":   "groq/llama-3.1-8b-instant",
-    "complex":  "groq/llama-3.3-70b-versatile",
-    "long_doc": "gemini/gemini-2.0-flash-exp",
-    "offline":  "ollama/llama3.1:8b",
-    "classify": "groq/llama-3.1-8b-instant",   # was ollama/llama3.2:3b
+    "simple":   "ollama/llama3.1:8b",          # local GPU first, free always
+    "complex":  "groq/llama-3.3-70b-versatile", # 70b quality, Groq free tier
+    "long_doc": "gemini/gemini-2.0-flash-exp",  # 1M context
+    "offline":  "ollama/llama3.1:8b",           # explicit offline mode
+    "classify": "ollama/llama3.2:3b",           # local 3b, fast, never hits API
 }
 
 def get_completion(messages: list[dict], complexity: str = "simple") -> str:
-    """Single entry point for all LLM calls. Returns response text."""
     model = MODEL_MAP.get(complexity, MODEL_MAP["simple"])
-
     response = litellm.completion(
         model=model,
         messages=messages,
@@ -40,15 +38,20 @@ def get_completion(messages: list[dict], complexity: str = "simple") -> str:
 
 
 if __name__ == "__main__":
-    # Quick smoke test
     result = get_completion(
-        messages=[{"role": "user", "content": "Say READY in one word"}],
+        [{"role": "user", "content": "Say READY in one word"}],
+        complexity="simple"
+    )
+    print(f"Simple (Ollama 8b): {result}")
+
+    result = get_completion(
+        [{"role": "user", "content": "Say READY in one word"}],
         complexity="complex"
     )
     print(f"Complex (Groq 70b): {result}")
 
     result = get_completion(
-        messages=[{"role": "user", "content": "Say READY in one word"}],
-        complexity="offline"
+        [{"role": "user", "content": "Say READY in one word"}],
+        complexity="classify"
     )
-    print(f"Offline (Ollama 8b): {result}")
+    print(f"Classify (Ollama 3b): {result}")

@@ -42,6 +42,9 @@ def research_node(state: ResearchState) -> ResearchState:
     # Retrieve contexts
     contexts = retriever.query(state["query"], top_k=3)
 
+    # Filter out irrelevant results (reranker score below 0 = no real match)
+    contexts = [c for c in contexts if c.get("reranker_score", c.get("score", 0)) > 0]
+
     if not contexts:
         return {
             **state,
@@ -52,7 +55,6 @@ def research_node(state: ResearchState) -> ResearchState:
             "next_agent": "END",
             "error": "no_context",
         }
-
     # Format citations
     citations: list[Citation] = [
         {
