@@ -20,11 +20,11 @@ litellm.fallbacks = [
 
 # Updated model map — llama-3.2-3b-preview decommissioned, use llama-3.2-1b-preview
 MODEL_MAP = {
-    "simple":   "groq/llama-3.2-1b-preview",   # fastest free option
-    "complex":  "groq/llama-3.3-70b-versatile", # best free quality
-    "long_doc": "gemini/gemini-2.0-flash-exp",  # 1M context
-    "offline":  "ollama/llama3.1:8b",           # local GPU
-    "classify": "ollama/llama3.2:3b",           # local, fast
+    "simple":   "groq/llama-3.1-8b-instant",    # replaces decommissioned llama-3.2-1b-preview
+    "complex":  "groq/llama-3.3-70b-versatile",
+    "long_doc": "gemini/gemini-2.0-flash-exp",
+    "offline":  "ollama/llama3.1:8b",
+    "classify": "ollama/llama3.2:3b",
 }
 
 def get_completion(messages: list[dict], complexity: str = "simple") -> str:
