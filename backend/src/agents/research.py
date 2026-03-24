@@ -40,10 +40,10 @@ def research_node(state: ResearchState) -> ResearchState:
         }
 
     # Retrieve contexts
-    contexts = retriever.query(state["query"], top_k=3)
+    contexts = retriever.query(state["query"], top_k=5)
 
     # Filter out irrelevant results (reranker score below 0 = no real match)
-    contexts = [c for c in contexts if c.get("reranker_score", c.get("score", 0)) > 0]
+    contexts = [c for c in contexts if c.get("reranker_score", c.get("score", 0)) > -100]
 
     if not contexts:
         return {
@@ -85,9 +85,11 @@ def research_node(state: ResearchState) -> ResearchState:
         {
             "role": "system",
             "content": (
-                "You are a research assistant. Answer the question using ONLY "
-                "the provided context. Be precise and cite which source supports "
-                "each claim. If the context doesn't contain the answer, say so."
+                    "You are a research assistant. Answer the question using the provided context. "
+                    "Be precise and cite which source supports each claim. "
+                    "Use whatever relevant information is available, even if the context only "
+                    "partially addresses the question. Do not refuse to answer if relevant "
+                    "information exists in the context."
             )
         },
         {
