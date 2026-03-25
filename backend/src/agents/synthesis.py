@@ -54,6 +54,18 @@ def synthesis_node(state: ResearchState) -> ResearchState:
     final_answer = get_completion(messages, complexity="complex")
     print(f"[Synthesis] Final answer ready ({len(final_answer)} chars)")
 
+    from src.agents.research import get_retriever
+    retriever = get_retriever()
+    if retriever.use_cache:
+        retriever.cache.set(
+            state["query"],
+            {
+                "contexts": state.get("retrieved_contexts", []),
+                "answer": final_answer,
+                "citations": state.get("citations", [])
+            }
+        )
+
     return {
         **state,
         "final_answer": final_answer,

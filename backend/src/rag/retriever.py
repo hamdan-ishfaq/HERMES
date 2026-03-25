@@ -205,10 +205,6 @@ class HermesRetriever:
         else:
             candidates = candidates[:top_k]
 
-        # 6. Cache result
-        if self.use_cache:
-            self.cache.set(question, {"contexts": candidates})
-
         return candidates
 
 

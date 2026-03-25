@@ -110,6 +110,12 @@ def research_node(state: ResearchState) -> ResearchState:
         else "END"
     )
 
+    if retriever.use_cache and next_agent == "END":
+        retriever.cache.set(
+            state["query"],
+            {"contexts": contexts, "answer": draft, "citations": citations}
+        )
+
     return {
         **state,
         "retrieved_contexts": contexts,
@@ -118,4 +124,5 @@ def research_node(state: ResearchState) -> ResearchState:
         "final_answer": draft,  # overwritten by synthesis if needed
         "model_used": model_used,
         "next_agent": next_agent,
+        "cache_hit": False,
     }

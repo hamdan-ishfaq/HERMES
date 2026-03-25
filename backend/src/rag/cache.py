@@ -81,6 +81,14 @@ class SemanticCache:
             try:
                 entry = json.loads(entry_json)
                 similarity = _cosine_similarity(query_vec, entry["embedding"])
+                
+                # Instantly return near-perfect matches to prioritize newest entries
+                if similarity >= 0.99:
+                    self.hits += 1
+                    print(f"Cache HIT (similarity: {similarity:.4f})")
+                    return {**entry["result"], "cache_hit": True,
+                            "similarity": round(similarity, 4)}
+
                 if similarity > best_similarity:
                     best_similarity = similarity
                     best_entry = entry

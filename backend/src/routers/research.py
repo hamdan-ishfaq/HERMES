@@ -27,12 +27,14 @@ async def research(
     answer = state.get("final_answer") or state.get("draft_answer") or ""
     citations = state.get("citations", [])
 
+    is_cached = state.get("cache_hit", False)
+
     log = QueryLog(
         user_id=current_user.id,
         query=req.query,
         answer=answer,
         model_used=state.get("model_used", ""),
-        cache_hit=state.get("cache_hit", False),
+        cache_hit=is_cached,
     )
     db.add(log)
     await db.commit()
@@ -41,7 +43,7 @@ async def research(
         "answer": answer,
         "citations": citations,
         "model_used": state.get("model_used", ""),
-        "cache_hit": state.get("cache_hit", False),
+        "cache_hit": is_cached,
     }
 
 
