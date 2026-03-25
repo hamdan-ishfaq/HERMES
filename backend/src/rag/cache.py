@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SIMILARITY_THRESHOLD = 0.85
+SIMILARITY_THRESHOLD = 0.95
 CACHE_TTL = 60 * 60 * 24  # 24 hours in seconds
 EMBEDDING_MODEL = "nomic-embed-text"
 

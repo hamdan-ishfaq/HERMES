@@ -72,6 +72,21 @@ def research_node(state: ResearchState) -> ResearchState:
         for c in citations
     ])
 
+    # Extract and format conversation history
+    history_msgs = state.get("messages", [])
+    history_str = ""
+    
+    # Exclude current query and grab the last 4 messages
+    past_msgs = [m for m in history_msgs if (getattr(m, "content", m.get("content", "")) if isinstance(m, dict) or hasattr(m, "content") else "") != state["query"]][-4:]
+    
+    if past_msgs:
+        history_str = "Previous Conversation:\n"
+        for m in past_msgs:
+            role = getattr(m, "type", m.get("role", "User") if isinstance(m, dict) else "User").capitalize()
+            content = getattr(m, "content", m.get("content", "") if isinstance(m, dict) else "")
+            history_str += f"{role}: {content}\n"
+        history_str += "\n"
+
     # Choose model based on complexity
     complexity_to_model = {
         "simple": "simple",
@@ -85,16 +100,16 @@ def research_node(state: ResearchState) -> ResearchState:
         {
             "role": "system",
             "content": (
-                    "You are a research assistant. Answer the question using the provided context. "
-                    "Be precise and cite which source supports each claim. "
-                    "Use whatever relevant information is available, even if the context only "
-                    "partially addresses the question. Do not refuse to answer if relevant "
-                    "information exists in the context."
+                "You are a research assistant. Answer the question using the provided context. "
+                "Use whatever relevant information is available, even if the context only "
+                "partially addresses the question. Do not refuse to answer if relevant "
+                "information exists in the context. "
+                "Synthesize the information naturally. CRITICAL: Do NOT mention filenames, URLs, page numbers, or relevance scores in your text response. Do not use brackets like [Source: X] or citations like [1]. Just write a clean, fluid answer. The UI will handle the citations separately."
             )
         },
         {
             "role": "user",
-            "content": f"Context:\n{context_str}\n\nQuestion: {state['query']}"
+            "content": f"{history_str}Context:\n{context_str}\n\nQuestion: {state['query']}"
         }
     ]
 

@@ -8,6 +8,7 @@ Conditional routing based on state["next_agent"].
 """
 
 from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
 from src.agents.state import ResearchState
 from src.agents.supervisor import supervisor_node
 from src.agents.research import research_node
@@ -56,7 +57,8 @@ def build_graph():
     # Synthesis always ends
     graph.add_edge("synthesis_agent", END)
 
-    return graph.compile()
+    memory = MemorySaver()
+    return graph.compile(checkpointer=memory)
 
 
 # Singleton graph instance
@@ -69,11 +71,15 @@ def get_graph():
     return _graph
 
 
-def run_research(query: str) -> dict:
+def run_research(query: str, session_id: str | None = None) -> dict:
     """
     Main entry point for running a research query through the full pipeline.
     Returns final state with answer and citations.
     """
+    import uuid
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
     graph = get_graph()
 
     initial_state: ResearchState = {
@@ -89,7 +95,8 @@ def run_research(query: str) -> dict:
         "error": None,
     }
 
-    final_state = graph.invoke(initial_state)
+    config = {"configurable": {"thread_id": session_id}}
+    final_state = graph.invoke(initial_state, config=config)
     return final_state
 
 

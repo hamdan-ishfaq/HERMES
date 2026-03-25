@@ -12,8 +12,11 @@ from src.agents.graph import run_research
 router = APIRouter(prefix="/api", tags=["research"])
 
 
+from typing import Optional
+
 class ResearchRequest(BaseModel):
     query: str
+    session_id: Optional[str] = None
 
 
 @router.post("/research")
@@ -22,7 +25,9 @@ async def research(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    state = run_research(req.query)
+    import uuid
+    session_id = req.session_id or str(uuid.uuid4())
+    state = run_research(req.query, session_id=session_id)
 
     answer = state.get("final_answer") or state.get("draft_answer") or ""
     citations = state.get("citations", [])
@@ -44,14 +49,19 @@ async def research(
         "citations": citations,
         "model_used": state.get("model_used", ""),
         "cache_hit": is_cached,
+        "session_id": session_id,
     }
 
 
 @router.get("/stream/research")
 async def stream_research(
     query: str,
+    session_id: Optional[str] = None,
     current_user: User = Depends(get_current_user),
 ):
+    import uuid
+    session_id = session_id or str(uuid.uuid4())
+
     async def event_generator():
         steps = [
             {"step": "supervisor", "status": "Classifying query..."},
@@ -61,8 +71,8 @@ async def stream_research(
         for s in steps:
             yield f"data: {json.dumps(s)}\n\n"
 
-        state = run_research(query)
+        state = run_research(query, session_id=session_id)
         answer = state.get("final_answer") or state.get("draft_answer") or ""
-        yield f"data: {json.dumps({'step': 'done', 'answer': answer, 'citations': state.get('citations', [])})}\n\n"
+        yield f"data: {json.dumps({'step': 'done', 'answer': answer, 'citations': state.get('citations', []), 'session_id': session_id})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

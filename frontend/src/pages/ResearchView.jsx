@@ -48,6 +48,9 @@ export default function ResearchView() {
   });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(() => {
+    return sessionStorage.getItem("hermes_session_id") || null;
+  });
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -70,7 +73,17 @@ export default function ResearchView() {
     setLoading(true);
 
     try {
-      const res = await client.post("/research", { query });
+      const res = await client.post("/research", { 
+        query,
+        session_id: sessionId || undefined
+      });
+
+      const newSessionId = res.data.session_id;
+      if (!sessionId && newSessionId) {
+        setSessionId(newSessionId);
+        sessionStorage.setItem("hermes_session_id", newSessionId);
+      }
+
       const aiMsg = { 
         role: "assistant", 
         content: res.data.answer, 
