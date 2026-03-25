@@ -1,0 +1,86 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hermes",
+        "options": {}
+      },
+      "name": "Trigger Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [100, 300],
+      "webhookId": "hermes-webhook-1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/ingest/url",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$json.body.token}}"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "url", "value": "={{$json.body.url}}"}
+          ]
+        },
+        "options": {}
+      },
+      "name": "1. Ingest Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [350, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/research",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$('Trigger Webhook').item.json.body.token}}"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "query", "value": "={{$('Trigger Webhook').item.json.body.query}}"}
+          ]
+        },
+        "options": {}
+      },
+      "name": "2. Run Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Trigger Webhook').item.json.body.slack_webhook}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "text", "value": "=*Hermes Research Report* 🧠\n\n*Question:* {{$('Trigger Webhook').item.json.body.query}}\n\n*Answer:* {{$json.answer}}\n\n*Citations Found:* {{$json.citations.length}}\n*Model:* {{$json.model_used}}"}
+          ]
+        },
+        "options": {}
+      },
+      "name": "3. Send to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Trigger Webhook": {
+      "main": [[{"node": "1. Ingest Document", "type": "main", "index": 0}]]
+    },
+    "1. Ingest Document": {
+      "main": [[{"node": "2. Run Research", "type": "main", "index": 0}]]
+    },
+    "2. Run Research": {
+      "main": [[{"node": "3. Send to Slack", "type": "main", "index": 0}]]
+    }
+  }
+}
