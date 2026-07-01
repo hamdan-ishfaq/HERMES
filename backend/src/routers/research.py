@@ -1,6 +1,4 @@
-import json
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,28 +49,3 @@ async def research(
         "cache_hit": is_cached,
         "session_id": session_id,
     }
-
-
-@router.get("/stream/research")
-async def stream_research(
-    query: str,
-    session_id: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-):
-    import uuid
-    session_id = session_id or str(uuid.uuid4())
-
-    async def event_generator():
-        steps = [
-            {"step": "supervisor", "status": "Classifying query..."},
-            {"step": "retrieval",  "status": "Retrieving contexts..."},
-            {"step": "generation", "status": "Generating answer..."},
-        ]
-        for s in steps:
-            yield f"data: {json.dumps(s)}\n\n"
-
-        state = run_research(query, session_id=session_id)
-        answer = state.get("final_answer") or state.get("draft_answer") or ""
-        yield f"data: {json.dumps({'step': 'done', 'answer': answer, 'citations': state.get('citations', []), 'session_id': session_id})}\n\n"
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")

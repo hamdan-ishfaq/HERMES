@@ -32,6 +32,20 @@ def fetch_transcript(video_id: str) -> list[dict]:
     return transcript
 
 
+def fetch_video_title(video_id: str) -> str | None:
+    """Best-effort video title lookup via yt-dlp (returns None on failure)."""
+    try:
+        from yt_dlp import YoutubeDL
+        opts = {"quiet": True, "skip_download": True, "no_warnings": True}
+        with YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(
+                f"https://www.youtube.com/watch?v={video_id}", download=False
+            )
+            return info.get("title")
+    except Exception:
+        return None
+
+
 def segments_to_chunks(segments: list[dict], chunk_seconds: int = 120) -> list[dict]:
     """
     Group transcript segments into ~2 minute chunks.
@@ -92,17 +106,23 @@ def ingest_youtube(url_or_id: str, retriever: HermesRetriever) -> dict:
     chunks = segments_to_chunks(segments, chunk_seconds=120)
     print(f"Transcript → {len(segments)} segments → {len(chunks)} chunks")
 
+    title = fetch_video_title(video_id)
+
     total_parents = 0
     total_children = 0
 
     for chunk in chunks:
+        start = chunk["start_seconds"]
         stats = retriever.ingest(
             text=chunk["text"],
             metadata={
                 "source": f"youtube:{video_id}",
+                "title": title,
+                # Deep-link to the exact moment for this chunk.
+                "url": f"https://www.youtube.com/watch?v={video_id}&t={start}s",
                 "page_num": None,
                 "timestamp": chunk["timestamp"],
-                "start_seconds": chunk["start_seconds"],
+                "start_seconds": start,
                 "type": "youtube",
             }
         )

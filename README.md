@@ -1,6 +1,6 @@
-# ⚡ Hermes: Enterprise-Grade Agentic RAG System
+# Hermes — Agentic RAG Research Assistant
 
-> **A production-ready Retrieval-Augmented Generation architecture engineered for extreme accuracy, dynamic agentic routing, and mathematically verified contextual grounding.**
+> Agentic RAG over PDFs, URLs, and YouTube with grounded citations. Hybrid dense + BM25 retrieval with Reciprocal Rank Fusion and cross-encoder reranking, orchestrated as a LangGraph retrieval + synthesis pipeline behind a JWT-secured FastAPI, with semantic caching and RAGAS-based quality tracking.
 
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
@@ -10,139 +10,129 @@
 
 ---
 
-## 🏗️ 1. System Architecture: The Life of a Query
+## What it does
 
-Hermes executes a highly sequenced, deterministic data flow designed to intercept redundant queries early, dynamically route execution paths, and algorithmically score retrieved context before ever interacting with an LLM.
+- **Ingest** PDFs, web pages, and YouTube transcripts into a hybrid vector store.
+- **Ask** natural-language questions and get answers grounded in the ingested sources, with citation cards that link back to the page, URL, or video timestamp.
+- **Retrieve** with hybrid dense + sparse search, fuse with RRF, and rerank with a cross-encoder before any LLM call.
+- **Cache** semantically similar questions to skip the pipeline on repeats.
+- **Track** answer quality with RAGAS (faithfulness, answer relevancy, context precision/recall).
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart TD
-    UI[React Frontend] -->|session_id + query| API[FastAPI Router]
-    API -->|Initialize ResearchState| Supervisor{LangGraph<br>Supervisor Node}
+    UI[React Frontend] -->|JWT + query| API[FastAPI Router]
+    API --> Cache{cache_check<br>semantic cache}
 
-    Supervisor -->|Complexity: Simple/Synthesis| Cache[Redis Semantic Cache]
+    Cache -->|hit ≥ 0.95| Return[Return cached answer<br>bypass retrieval + generation]
+    Return --> UI
 
-    Cache -->|sim &ge; 0.95| CacheHit{Cache Hit?}
-    
-    CacheHit -->|Yes| FastTrack[Bypass LLM: Return Cached Answer]
-    FastTrack --> UI
+    Cache -->|miss| Supervisor[supervisor<br>classify complexity]
+    Supervisor --> Research[research_agent]
 
-    CacheHit -->|No| Embed[Nomic-Embed-Text + FastEmbed BM25]
-    Embed --> Qdrant[(Qdrant Vector DB)]
-    
-    Qdrant -->|Dense + Sparse Vectors| RRF[Reciprocal Rank Fusion]
-    RRF --> HybridResults[Hybrid Search Results]
-    
-    HybridResults --> Rerank[Cross-Encoder Reranker<br>ms-marco-MiniLM-L-6-v2]
-    Rerank -->|Top-K Sorted| Context[Parent Context Expansion]
+    subgraph Retrieval
+        Research --> Embed[nomic-embed-text dense<br>+ BM25 sparse]
+        Embed --> Qdrant[(Qdrant)]
+        Qdrant -->|dense + sparse prefetch| RRF[RRF fusion]
+        RRF --> Rerank[Cross-encoder rerank<br>ms-marco-MiniLM-L-6-v2]
+        Rerank --> Parent[Parent-context expansion]
+    end
 
-    Context --> LLM[LLM Injection + MemorySaver]
-    LLM --> UI
+    Parent --> Draft[Draft answer + citations]
+    Draft -->|simple| UI
+    Draft -->|multi-hop / synthesis| Synthesis[synthesis_agent]
+    Synthesis --> UI
 ```
+
+The LangGraph pipeline is: `START → cache_check → [END on hit | supervisor → research_agent → (synthesis_agent) → END]`. The supervisor classifies query complexity; simple queries finish after research, while multi-hop/synthesis queries get a second synthesis pass.
 
 ---
 
-## 🔬 2. Core Engineering Innovations
+## Core components
 
-<details>
-<summary><b>🛠️ Advanced Retrieval Stack (Hybrid Search, RRF, Chunking)</b></summary>
-<br>
-Naive RAG frequently fails at exact keyword retrieval (e.g., serial numbers or specific UUIDs). Hermes bridges this computational gap by executing two isolated retrieval protocols asynchronously:
-<ul>
-  <li><b>Dense Vectors</b> (`nomic-embed-text`): Captures broad semantic meaning.</li>
-  <li><b>Sparse Vectors</b> (`BM25` via fastembed): Secures rigid terminology and exact lexical matches.</li>
-</ul>
-Results are fused algorithmically using <b>Reciprocal Rank Fusion (RRF)</b> to yield mathematically optimal result sets. Furthermore, the system employs <b>Parent-Child Hierarchical Chunking</b>: the database isolates extremely microscopic "child" chunks for high-precision retrieval, but natively traverses a relational graph to feed the LLM the overarching "parent" document for broader situational context, heavily mitigating hallucination logic.
-</details>
+### Hybrid retrieval (`backend/src/rag/retriever.py`)
+- **Dense** embeddings via `nomic-embed-text` (Ollama) capture semantic meaning.
+- **Sparse** BM25 vectors via `fastembed` capture exact lexical / keyword matches.
+- Qdrant runs both as prefetches and fuses them with **Reciprocal Rank Fusion (RRF)**.
+- **Parent-child chunking** (`chunker.py`): small child chunks are indexed for precise retrieval, but the larger parent chunk is returned to the LLM for context. Parent text is persisted in the Qdrant payload so expansion works across processes and restarts.
 
-<details>
-<summary><b>⚖️ Cross-Encoder Reranking</b></summary>
-<br>
-Cosine similarity is incredibly fast but mathematically blunt—it grades vectors independently. To guarantee enterprise accuracy, Hermes intercepts the raw Qdrant Top-N results and pushes them through a heavy neural network (`ms-marco-MiniLM-L-6-v2`). The Cross-Encoder evaluates the specific user query against every retrieved passage <i>jointly</i>, filtering out vector noise and guaranteeing pinpoint relevance before the context window is ever constructed.
-</details>
+### Cross-encoder reranking (`backend/src/rag/reranker.py`)
+Vector similarity scores candidates independently. The `ms-marco-MiniLM-L-6-v2` cross-encoder rescores the query against each candidate jointly, and contexts below `MIN_RERANK_SCORE` (default `0.35`) are dropped before the prompt is built.
 
-<details>
-<summary><b>🏎️ Semantic Caching (Bypassing LLM Inference)</b></summary>
-<br>
-To radically suppress repetitive GPU cycles, Hermes implements a semantic Vector Cache over <b>Upstash Redis</b>. 
-<br><br>
-<b>The Float-Noise Vector Bug:</b> During performance testing, minor floating-point mathematical discrepancies between identical query embeddings caused false-negative cache misses. Additionally, early architecture iterations incorrectly cached <i>pure contexts</i>, entirely failing to bypass the heavy LLM execution block. 
-<br><br>
-<b>The Fix:</b> We rigorously decoupled the cache and enforced a strict <code>&ge; 0.95</code> semantic fallback threshold stringency to block false-positive intersections. The serialization payload was overhauled to capture the true final <i>Answer String</i> intrinsically. Now, conceptually isomorphic queries successfully short-circuit the entire LangGraph pipeline, yielding 0-latency inference costs.
-</details>
+### Semantic cache (`backend/src/rag/cache.py`)
+A Redis-backed cache embeds each query and compares against stored queries by cosine similarity (threshold `0.95`). On a hit, `cache_check` (the first graph node) returns the stored answer and **bypasses retrieval and generation** — an honest latency optimization, not a bypass of "the entire pipeline" before classification.
 
-<details>
-<summary><b>🤖 Agentic Routing & Conversational Memory</b></summary>
-<br>
-Instead of linear procedural LLM chains, Hermes utilizes compiled cyclic workflows operating over LangGraph:
-<ul>
-  <li><b>`supervisor_node`</b>: Classifies incoming complexities dynamically, dictating the optimal retrieval depth protocol.</li>
-  <li><b>`MemorySaver`</b>: Persists long-term, multi-turn contexts utilizing native episodic checkpointers. The React frontend actively captures and syncs a unique <code>session_id</code> to browser <code>sessionStorage</code>, passing it within every HTTP payload to perfectly hydrate the LangGraph conversational execution tree without amnesia.</li>
-</ul>
-</details>
+### LangGraph agents (`backend/src/agents/`)
+- `cache_check.py` — semantic cache gate (entry node).
+- `supervisor.py` — classifies complexity (simple / multi-hop / synthesis).
+- `research.py` — retrieves, reranks, and drafts an answer with citations.
+- `synthesis.py` — refines multi-hop / cross-document answers.
+
+### FastAPI + JWT (`backend/src/`)
+- `POST /api/auth/register`, `POST /api/auth/login` — JWT auth.
+- `POST /api/research` — run a query (Bearer token required).
+- `POST /api/ingest/pdf`, `/api/ingest/url`, `/api/ingest/youtube` — ingestion.
+- `GET /api/eval/dashboard`, `POST /api/eval/run` — RAGAS reporting.
 
 ---
 
-## ⚖️ 3. Engineering Trade-offs & System Post-Mortem
+## Evaluation (RAGAS)
 
-Designing an enterprise pipeline requires conscious architectural concessions.
+Quality is measured with RAGAS using a local Ollama judge (`llama3.1:8b`) over a golden Q&A set. Latest run (`backend/eval_report.json`, 10 questions):
 
-### 📉 Latency vs. Accuracy (The Reranker Tax)
-We consciously accepted the severe computational latency penalty of running a `ms-marco` neural Cross-Encoder. While bypassing it reduces TTFB (Time-To-First-Byte) heavily, mathematically blunt vector similarity creates unacceptably high retrieval hallucination rates on complex data repositories. Accuracy natively supersedes speed in enterprise RAG.
+| Metric | Score |
+|---|---|
+| Faithfulness | 0.75 |
+| Answer relevancy | 0.72 |
+| Context precision | 0.72 |
+| Context recall | 0.81 |
 
-### 📉 Why No "Self-RAG" (Yet)
-While implementing a native reflection loop (having the LLM natively grade its exact retrieved chunks and re-querying the database autonomously) guarantees maximal reliability, we omitted it for V1. Injecting an isolated evaluation LLM jump prior to the primary synthesis block universally breached our sub-3-second TTFB targets, damaging the real-time chat UX.
+Run an evaluation:
 
-### 📉 Why No Query Expansion
-We opted against upfront prompt rewriting (generating multiple synthetic query variants before hitting the database). Because we optimized the Hybrid Vector space (RRF + BM25), the dense semantic fallback handles varying terminology gradients flawlessly, rendering the massive latency bump of LLM-based Query Expansion computationally redundant.
+```bash
+# via API (background job, JWT required)
+curl -X POST localhost:8000/api/eval/run -H "Authorization: Bearer <token>"
+
+# or directly
+cd backend && uv run python -m src.evaluation.ragas_eval
+```
+
+RAGAS is not part of CI (it depends on a running Ollama judge and takes several minutes). CI runs the mocked unit tests; an integration test exercises the real retriever locally.
 
 ---
 
-## 📁 4. Project Structure & Setup
+## Setup
 
-```text
-hermes/
-├── backend/
-│   ├── src/
-│   │   ├── agents/
-│   │   │   ├── graph.py       # LangGraph Orchestration & MemorySaver
-│   │   │   ├── research.py    # LLM Organic Synthesis
-│   │   │   └── supervisor.py  # Inference Classification Routing
-│   │   ├── rag/
-│   │   │   ├── cache.py       # Redis Semantic Intercept
-│   │   │   ├── retriever.py   # Qdrant Hybrid RRF Protocol
-│   │   │   ├── reranker.py    # ms-marco Cross-Encoder
-│   │   │   └── chunker.py     # Parent-Child mapping logic
-│   │   └── routers/           # FastAPI Endpoints
-│   └── main.py
-├── frontend/
-│   ├── src/
-│   │   ├── components/        # React Glassmorphism UI
-│   │   ├── pages/
-│   │   │   ├── ResearchView.jsx
-│   │   │   └── Analytics.jsx
-│   │   └── api/
-│   └── vite.config.js
-└── README.md
+### 1. Start infrastructure
+
+```bash
+docker compose up -d postgres redis qdrant
+# optional: run a local LLM/embedding server too
+# docker compose --profile local up -d
 ```
 
-### ⚙️ Required Configuration (`.env`)
-```env
-# Backend /.env
-QDRANT_URL=http://localhost:6333
-QDRANT_API_KEY=your-api-key
-REDIS_URL=redis://localhost:6379
-OLLAMA_API_BASE=http://localhost:11434
+You also need an Ollama server reachable at `OLLAMA_API_BASE` serving `nomic-embed-text` (embeddings) and `llama3.1:8b` / `llama3.2:3b` (generation).
+
+### 2. Configure environment
+
+```bash
+cp backend/.env.example backend/.env
+# edit values as needed (SECRET_KEY is required in production)
 ```
 
-### 🚀 Bootstrapping the System
+### 3. Backend
 
-**1. Initialize the FastAPI LangGraph Pipeline**
 ```bash
 cd backend
+uv sync
 uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**2. Boot the React Frontend Dashboard**
+### 4. Frontend
+
 ```bash
 cd frontend
 npm install
@@ -150,4 +140,47 @@ npm run dev
 ```
 
 ---
-*Architected and engineered as a high-performance demonstration of Enterprise AI Engineering.*
+
+## Tests
+
+```bash
+cd backend
+uv run pytest -m "not integration"      # unit tests (mocked, used in CI)
+uv run pytest -m integration            # real Qdrant + Ollama + Redis required
+```
+
+---
+
+## Project structure
+
+```text
+hermes/
+├── backend/
+│   ├── src/
+│   │   ├── agents/
+│   │   │   ├── cache_check.py   # semantic cache gate (entry node)
+│   │   │   ├── supervisor.py    # complexity classification + routing
+│   │   │   ├── research.py      # retrieval + draft answer + citations
+│   │   │   ├── synthesis.py     # multi-hop / cross-doc refinement
+│   │   │   └── graph.py         # LangGraph wiring
+│   │   ├── rag/
+│   │   │   ├── factory.py       # shared retriever singleton
+│   │   │   ├── retriever.py     # Qdrant hybrid search + RRF
+│   │   │   ├── reranker.py      # cross-encoder reranking
+│   │   │   ├── chunker.py       # parent-child chunking
+│   │   │   └── cache.py         # Redis semantic cache
+│   │   ├── ingestion/           # pdf / url / youtube loaders
+│   │   ├── routers/             # FastAPI endpoints
+│   │   ├── evaluation/          # RAGAS eval + golden dataset
+│   │   ├── auth.py              # JWT auth
+│   │   └── main.py             # FastAPI app (entrypoint: src.main:app)
+│   └── tests/
+├── frontend/                    # React + Vite UI
+└── docker-compose.yml
+```
+
+---
+
+## Scope
+
+This is a focused implementation of agentic RAG. Intentionally **not** included: CRAG/Self-RAG reflection loops, long-term conversational memory, query expansion, and token-level streaming. These are possible future extensions, not current features.

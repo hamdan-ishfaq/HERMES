@@ -24,8 +24,13 @@ from ragas.run_config import RunConfig
 
 from src.evaluation.golden_dataset import GOLDEN_QA
 from src.agents.graph import run_research
-from src.rag.retriever import HermesRetriever
+from src.rag.factory import get_retriever
 from src.ingestion.url_loader import ingest_url
+
+# Write reports next to the backend root so the API dashboard can read them.
+_BACKEND_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+REPORT_PATH = os.path.join(_BACKEND_ROOT, "eval_report.json")
+DETAILS_PATH = os.path.join(_BACKEND_ROOT, "eval_details.json")
 
 def _build_dataset(n_questions: int) -> Dataset:
     questions = GOLDEN_QA[:n_questions]
@@ -76,7 +81,9 @@ def run_evaluation(n_questions: int = 10):
         pass
         
     print("\nStep 2: Ingesting rich knowledge base...")
-    retriever = HermesRetriever(use_cache=False, use_reranker=True)
+    # Use the SAME shared retriever the API/agent uses so evaluation exercises
+    # the real production path (parent expansion, hybrid search, reranking).
+    retriever = get_retriever()
     urls = [
         "https://en.wikipedia.org/wiki/Retrieval-augmented_generation",
         "https://qdrant.tech/articles/hybrid-search/",
@@ -125,8 +132,8 @@ def run_evaluation(n_questions: int = 10):
 
     try:
         df = scores.to_pandas()
-        df.to_json("eval_details.json", orient="records", indent=2)
-        print("\n✅ Detailed row-by-row data saved to 'eval_details.json'")
+        df.to_json(DETAILS_PATH, orient="records", indent=2)
+        print(f"\n✅ Detailed row-by-row data saved to '{DETAILS_PATH}'")
     except Exception as e:
         print(f"\n⚠️ Could not save detailed pandas dataframe: {e}")
 
@@ -164,7 +171,7 @@ def run_evaluation(n_questions: int = 10):
     fmt("Context Recall:",    report["context_recall"],    0.80)
     print("=" * 50)
 
-    with open("eval_report.json", "w") as f:
+    with open(REPORT_PATH, "w") as f:
         json.dump(report, f, indent=2)
 
     return report

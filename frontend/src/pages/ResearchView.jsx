@@ -1,9 +1,28 @@
+/**
+ * Research Agent chat interface — the primary RAG Q&A experience.
+ *
+ * Role in the UI:
+ *   - Default landing page at `/` inside the authenticated shell.
+ *   - Maintains a scrollable conversation history with user and assistant bubbles.
+ *   - Renders markdown answers, source citations, cache-hit badges, and model labels.
+ *   - Persists chat history and session ID in `sessionStorage` for tab-level continuity.
+ *
+ * API endpoints:
+ *   - POST /research — send `{ query, session_id? }`, receive answer + citations
+ */
+
 import React, { useState, useRef, useEffect } from "react";
 import client from "../api/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Loader2, FileText, Zap, User, Hexagon, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
+/**
+ * Compact horizontal card for a single citation returned by the research endpoint.
+ * Distinguishes web URLs (clickable) from PDF page references (static text).
+ *
+ * @param {{ citation: object, index: number }} props
+ */
 function CitationCard({ citation, index }) {
   const isUrl = !!citation.url;
   const linkText = isUrl ? (citation.title || citation.source || "Web Page") : `Page ${citation.page_num || "Web Page"}`;
@@ -41,6 +60,9 @@ function CitationCard({ citation, index }) {
   );
 }
 
+/**
+ * Full-page research chat — manages message state, API calls, and auto-scroll.
+ */
 export default function ResearchView() {
   const [messages, setMessages] = useState(() => {
     const saved = sessionStorage.getItem("hermes_chat_history");
@@ -53,14 +75,20 @@ export default function ResearchView() {
   });
   const bottomRef = useRef(null);
 
+  /** Mirror chat history to sessionStorage whenever messages change. */
   useEffect(() => {
     sessionStorage.setItem("hermes_chat_history", JSON.stringify(messages));
   }, [messages]);
 
+  /** Keep the viewport pinned to the latest message or loading indicator. */
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  /**
+   * Send the user's query to POST /research and append the assistant reply.
+   * Captures `session_id` from the first response for multi-turn context.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
@@ -104,13 +132,13 @@ export default function ResearchView() {
 
   return (
     <div className="flex flex-col h-screen max-h-screen relative">
-      {/* Header */}
+      {/* Page header */}
       <div className="flex-none p-6 pb-2 pl-8 lg:pl-12">
         <h1 className="text-3xl font-semibold tracking-tight text-white">Research Agent</h1>
         <p className="text-zinc-400 mt-1">Ask questions spanning your ingested knowledge base.</p>
       </div>
 
-      {/* Chat Area */}
+      {/* Chat area — message list, empty state, loading dots */}
       <div className="flex-1 overflow-y-auto px-4 lg:px-12 py-6 flex flex-col gap-8 pb-32">
         {messages.length === 0 && !loading && (
           <div className="flex-1 flex flex-col items-center justify-center text-center opacity-70 mt-20">
@@ -129,14 +157,14 @@ export default function ResearchView() {
             animate={{ opacity: 1, y: 0 }}
             className={`flex w-full gap-4 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
           >
-            {/* Avatar */}
+            {/* Avatar — user icon vs. Hermes hexagon */}
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1 ${
               msg.role === "user" ? "bg-zinc-800" : "bg-white text-zinc-950"
             }`}>
               {msg.role === "user" ? <User className="w-4 h-4 text-zinc-300" /> : <Hexagon className="w-5 h-5 fill-zinc-950" />}
             </div>
 
-            {/* Bubble Layout */}
+            {/* Message bubble + metadata + citations */}
             <div className={`flex flex-col max-w-[85%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
               {msg.role === "assistant" && (msg.cache_hit || msg.model) && (
                 <div className="flex items-center gap-2 mb-2 px-1">
@@ -171,7 +199,7 @@ export default function ResearchView() {
                 )}
               </div>
 
-              {/* Citations Row */}
+              {/* Citations row — horizontally scrollable source cards */}
               {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
                 <div className="mt-4 w-full">
                   <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 px-2">Sources</div>
@@ -203,7 +231,7 @@ export default function ResearchView() {
         <div ref={bottomRef} className="h-4 w-full" />
       </div>
 
-      {/* Floating Input area */}
+      {/* Floating input area — fixed to bottom with gradient fade */}
       <div className="absolute bottom-0 left-0 right-0 p-4 lg:p-8 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent pointer-events-none flex justify-center">
         <div className="w-full max-w-3xl pointer-events-auto">
           <form

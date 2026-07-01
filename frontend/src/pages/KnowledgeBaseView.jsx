@@ -1,8 +1,27 @@
+/**
+ * Knowledge Base ingestion page — add documents and URLs to the vector store.
+ *
+ * Role in the UI:
+ *   - Accessible at `/knowledge-base` from the sidebar.
+ *   - Two ingestion paths: web/YouTube URLs and local PDF uploads (with drag-and-drop).
+ *   - Shows toast notifications for success and error feedback.
+ *
+ * API endpoints:
+ *   - POST /ingest/url      — generic web page scraping
+ *   - POST /ingest/youtube  — YouTube transcript extraction (auto-selected for YT URLs)
+ *   - POST /ingest/pdf      — multipart PDF upload
+ */
+
 import React, { useState } from "react";
 import { Link, Globe, FileText, UploadCloud, CheckCircle2, Loader2 } from "lucide-react";
 import client from "../api/client";
 import { motion, AnimatePresence } from "framer-motion";
 
+/**
+ * Reusable glass card wrapper for each ingestion method.
+ *
+ * @param {{ title: string, icon: React.ComponentType, children: React.ReactNode }} props
+ */
 function IngestCard({ title, icon: Icon, children }) {
   return (
     <div className="glass-card p-6 relative overflow-hidden group">
@@ -18,6 +37,9 @@ function IngestCard({ title, icon: Icon, children }) {
   );
 }
 
+/**
+ * Main ingestion view — manages URL and PDF upload flows with shared loading state.
+ */
 export default function KnowledgeBaseView() {
   const [url, setUrl] = useState("");
   const [pdfFile, setPdfFile] = useState(null);
@@ -27,11 +49,15 @@ export default function KnowledgeBaseView() {
   const [successMsg, setSuccessMsg] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
+  /** Auto-dismiss success toast after 5 seconds. */
   const showNotification = (msg) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(null), 5000);
   };
 
+  /**
+   * POST the URL to /ingest/youtube or /ingest/url based on hostname detection.
+   */
   const handleUrlSubmit = async (e) => {
     e.preventDefault();
     if (!url) return;
@@ -51,6 +77,9 @@ export default function KnowledgeBaseView() {
     }
   };
 
+  /**
+   * Upload the selected PDF as multipart/form-data to POST /ingest/pdf.
+   */
   const handlePdfSubmit = async (e) => {
     e.preventDefault();
     if (!pdfFile) return;
@@ -73,6 +102,7 @@ export default function KnowledgeBaseView() {
     }
   };
 
+  /** Highlight drop zone while a file is dragged over it. */
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -85,6 +115,7 @@ export default function KnowledgeBaseView() {
     setIsDragging(false);
   };
 
+  /** Accept only PDF files from drag-and-drop; warn on other MIME types. */
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -100,13 +131,15 @@ export default function KnowledgeBaseView() {
 
   return (
     <div className="max-w-4xl mx-auto p-8 lg:p-12 w-full">
+      {/* Page header */}
       <div className="mb-10">
         <h1 className="text-3xl font-semibold tracking-tight text-white mb-2">Knowledge Base</h1>
         <p className="text-zinc-400">Add documents and URLs to expand the agent's context.</p>
       </div>
 
+      {/* Ingestion cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* URL Ingestion */}
+        {/* URL ingestion form */}
         <IngestCard title="Web & YouTube URL" icon={Globe}>
           <form onSubmit={handleUrlSubmit} className="space-y-4">
             <input
@@ -131,7 +164,7 @@ export default function KnowledgeBaseView() {
           </form>
         </IngestCard>
 
-        {/* PDF Ingestion */}
+        {/* PDF upload form with drag-and-drop zone */}
         <IngestCard title="Local Document (PDF)" icon={FileText}>
           <form onSubmit={handlePdfSubmit} className="space-y-4">
             <label 
@@ -169,6 +202,7 @@ export default function KnowledgeBaseView() {
         </IngestCard>
       </div>
 
+      {/* Success toast notification */}
       <AnimatePresence>
         {successMsg && (
           <motion.div
@@ -183,6 +217,7 @@ export default function KnowledgeBaseView() {
         )}
       </AnimatePresence>
 
+      {/* Error toast notification */}
       <AnimatePresence>
         {errorMsg && (
           <motion.div

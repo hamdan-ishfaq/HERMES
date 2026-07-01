@@ -17,19 +17,26 @@ services:
     volumes:
       - redis_data:/data
 
-  n8n:
-    image: docker.n8n.io/n8nio/n8n
+  qdrant:
+    image: qdrant/qdrant
     ports:
-      - "5678:5678"
-    environment:
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - NODE_ENV=production
+      - "6333:6333"   # REST + dashboard
+      - "6334:6334"   # gRPC
     volumes:
-      - n8n_data:/home/node/.n8n
+      - qdrant_data:/qdrant/storage
+
+  # Optional local LLM/embedding server. Enable with:
+  #   docker compose --profile local up -d
+  ollama:
+    image: ollama/ollama
+    profiles: ["local"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
 
 volumes:
   postgres_data:
   redis_data:
-  n8n_data:
+  qdrant_data:
+  ollama_data:

@@ -1,3 +1,15 @@
+/**
+ * Analytics dashboard — RAG evaluation metrics and usage statistics.
+ *
+ * Role in the UI:
+ *   - Accessible at `/analytics` from the sidebar.
+ *   - Fetches aggregated metrics on mount and renders stat cards + Recharts visualizations.
+ *   - Displays RAGAS quality scores (context precision, recall, faithfulness, relevancy).
+ *
+ * API endpoints:
+ *   - GET /eval/dashboard — returns total_queries, cache_hit_rate, and ragas scores
+ */
+
 import React, { useEffect, useState } from "react";
 import client from "../api/client";
 import { motion } from "framer-motion";
@@ -19,6 +31,11 @@ import {
   Cell
 } from "recharts";
 
+/**
+ * Animated summary card for a single scalar metric (e.g. total queries).
+ *
+ * @param {{ label: string, value: string|number, icon: React.ComponentType, delay?: number }} props
+ */
 function StatCard({ label, value, icon: Icon, delay = 0 }) {
   return (
     <motion.div
@@ -38,6 +55,11 @@ function StatCard({ label, value, icon: Icon, delay = 0 }) {
   );
 }
 
+/**
+ * Custom Recharts tooltip styled to match the dark glass UI theme.
+ *
+ * @param {{ active?: boolean, payload?: Array, label?: string }} props
+ */
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -55,11 +77,15 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+/**
+ * Dashboard page — loads eval data once on mount and renders charts.
+ */
 export default function AnalyticsView() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  /** Fetch dashboard payload from GET /eval/dashboard on first render. */
   useEffect(() => {
     async function fetchDash() {
       try {
@@ -106,11 +132,13 @@ export default function AnalyticsView() {
 
   return (
     <div className="max-w-6xl mx-auto p-8 lg:p-12 w-full">
+      {/* Page header */}
       <div className="mb-10">
         <h1 className="text-3xl font-semibold tracking-tight text-white mb-2">Analytics</h1>
         <p className="text-zinc-400">View performance metrics and RAG evaluation scores.</p>
       </div>
 
+      {/* Summary stat cards — query volume and cache efficiency */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <StatCard
           icon={Activity}
@@ -126,8 +154,9 @@ export default function AnalyticsView() {
         />
       </div>
 
+      {/* Charts grid — RAGAS radar + score breakdown bar chart */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Radar Chart */}
+        {/* Radar chart — four RAGAS dimensions on a 0–1 scale */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -151,7 +180,7 @@ export default function AnalyticsView() {
           </div>
         </motion.div>
 
-        {/* Bar Chart */}
+        {/* Bar chart — same RAGAS scores with color-coded performance bands */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}

@@ -1,8 +1,25 @@
+/**
+ * Public authentication page — toggles between Sign In and Sign Up forms.
+ *
+ * Role in the UI:
+ *   - Rendered at `/auth` for unauthenticated users (see App.jsx).
+ *   - Collects email + password and delegates to AuthContext `login` / `register`.
+ *   - Displays API validation errors returned in `response.data.detail`.
+ *
+ * API endpoints (via AuthContext → api/client.js):
+ *   - POST /auth/login
+ *   - POST /auth/register
+ */
+
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Hexagon, Loader2, ArrowRight } from "lucide-react";
 
+/**
+ * Dual-mode auth form with animated card layout.
+ * Successful auth redirects automatically because App.jsx watches `isAuthenticated`.
+ */
 export default function LoginRegister() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -11,6 +28,10 @@ export default function LoginRegister() {
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuth();
 
+  /**
+   * Submit handler — routes to login or register based on `isLogin` toggle.
+   * Surfaces FastAPI `detail` strings on 4xx responses.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -35,21 +56,24 @@ export default function LoginRegister() {
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Subtle background glow effect using a large blurred circle instead of neon slop */}
+      {/* Decorative background glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/[0.02] rounded-full blur-3xl pointer-events-none" />
 
+      {/* Auth card — logo, heading, form */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-sm glass p-8 rounded-[2rem] relative z-10"
       >
+        {/* Logo */}
         <div className="flex justify-center mb-8 text-white">
           <div className="p-3 bg-white/10 rounded-2xl border border-white/10 shadow-2xl">
             <Hexagon className="w-8 h-8 text-zinc-100" />
           </div>
         </div>
 
+        {/* Heading — copy changes with login vs. register mode */}
         <div className="text-center mb-8">
           <h2 className="text-2xl font-semibold text-white tracking-tight mb-2">
             {isLogin ? "Welcome back" : "Create an account"}
@@ -61,6 +85,7 @@ export default function LoginRegister() {
           </p>
         </div>
 
+        {/* Credentials form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-zinc-400 ml-1">Email</label>
@@ -86,6 +111,7 @@ export default function LoginRegister() {
             />
           </div>
 
+          {/* Inline API error banner */}
           {error && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
@@ -112,6 +138,7 @@ export default function LoginRegister() {
           </button>
         </form>
 
+        {/* Mode toggle — switch between login and register without changing route */}
         <div className="mt-8 text-center text-sm text-zinc-500">
           {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button

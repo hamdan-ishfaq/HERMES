@@ -6,19 +6,11 @@ import tempfile, os
 from src.db import IngestionJob, get_db
 from src.auth import get_current_user
 from src.db import User
-from src.rag.retriever import HermesRetriever
+from src.rag.factory import get_retriever
 from src.ingestion.url_loader import ingest_url
 from src.ingestion.youtube_loader import ingest_youtube
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
-
-# Shared retriever — initialised once
-_retriever = None
-def get_retriever() -> HermesRetriever:
-    global _retriever
-    if _retriever is None:
-        _retriever = HermesRetriever(use_cache=True, use_reranker=True)
-    return _retriever
 
 
 class URLRequest(BaseModel):
@@ -47,8 +39,18 @@ async def ingest_url_endpoint(
 
     try:
         result = ingest_url(req.url, get_retriever())
+        if result.get("status") == "failed":
+            raise HTTPException(
+                status_code=422,
+                detail=result.get("error", f"Could not extract content from {req.url}"),
+            )
         job.status = "ok"
         job.chunks_stored = result.get("total_children", 0)
+    except HTTPException as e:
+        job.status = "error"
+        job.error_msg = str(e.detail)
+        await db.commit()
+        raise
     except Exception as e:
         job.status = "error"
         job.error_msg = str(e)
@@ -77,8 +79,18 @@ async def ingest_youtube_endpoint(
 
     try:
         result = ingest_youtube(req.url, get_retriever())
+        if result.get("status") == "failed":
+            raise HTTPException(
+                status_code=422,
+                detail=result.get("error", f"Could not fetch transcript for {req.url}"),
+            )
         job.status = "ok"
         job.chunks_stored = result.get("total_children", 0)
+    except HTTPException as e:
+        job.status = "error"
+        job.error_msg = str(e.detail)
+        await db.commit()
+        raise
     except Exception as e:
         job.status = "error"
         job.error_msg = str(e)
