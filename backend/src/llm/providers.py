@@ -1,3 +1,25 @@
+"""
+LLM provider layer — unified text generation via LiteLLM.
+
+What this file does:
+    Maps logical complexity keys (``simple``, ``complex``, ``classify``) to concrete
+    model IDs and calls ``litellm.completion``. Configures automatic fallback when
+    a hosted API rate-limits or errors.
+
+Where it sits in the HERMES pipeline:
+    Called by ``supervisor.py`` (classify), ``research.py`` (draft answer),
+    and ``synthesis.py`` (refined answer). This is the only module that talks
+    to external/hosted LLMs.
+
+What calls this:
+    - ``src/agents/supervisor.classify_complexity``
+    - ``src/agents/research.research_node``
+    - ``src/agents/synthesis.synthesis_node``
+
+What this calls:
+    - LiteLLM → Ollama (local), Groq, or Gemini depending on ``MODEL_MAP`` key
+"""
+
 import os
 import litellm
 from dotenv import load_dotenv
@@ -6,7 +28,7 @@ load_dotenv()
 
 litellm.suppress_debug_info = True
 
-# Fallback chain — fires automatically on rate limit or error
+# Fallback chain — LiteLLM retries the next model on rate limit or API error.
 litellm.fallbacks = [
     # Complex queries: Groq 70b → Gemini → local 8b
     {"groq/llama-3.3-70b-versatile": [
@@ -28,7 +50,18 @@ MODEL_MAP = {
 }
 
 def get_completion(messages: list[dict], complexity: str = "simple") -> str:
+    """
+    Send a chat completion request for the given complexity tier.
+
+    Parameters:
+        messages: OpenAI-style list of ``{role, content}`` dicts.
+        complexity: Key into ``MODEL_MAP`` — ``simple``, ``complex``, ``classify``, etc.
+
+    Returns:
+        Assistant message text (first choice).
+    """
     model = MODEL_MAP.get(complexity, MODEL_MAP["simple"])
+    # Ollama models need an explicit api_base; hosted models use env API keys.
     response = litellm.completion(
         model=model,
         messages=messages,

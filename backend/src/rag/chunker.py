@@ -1,12 +1,23 @@
 """
 Hierarchical parent-child chunker.
 
+What this file does:
+    Splits raw document text into large parent segments (~1000 chars) and small
+    child segments (~200 chars). Children are embedded for retrieval; parents
+    are returned to the LLM for richer context.
+
+Where it sits in the HERMES pipeline:
+    Called by ``HermesRetriever.ingest()`` for every document page/chunk.
+
+What calls this:
+    - ``src.rag.retriever.HermesRetriever.ingest``
+
 Strategy:
   - Parent chunks: ~1000 chars — sent to LLM for context
   - Child chunks:  ~200 chars  — used for precise retrieval
 
 Each child stores its parent_id so we can fetch the full
-parent context after retrieval.
+parent context after retrieval (also persisted as parent_text in Qdrant).
 """
 
 import uuid

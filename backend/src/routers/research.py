@@ -1,3 +1,21 @@
+"""
+Research HTTP route — main RAG Q&A endpoint.
+
+What this file does:
+    Accepts a user question, runs the full LangGraph pipeline via ``run_research``,
+    logs the result to ``query_logs``, and returns the answer + citations JSON.
+
+Where it sits in the HERMES pipeline:
+    Primary read path — connects the React chat UI to ``agents/graph.py``.
+
+What calls this:
+    - React ``ResearchView`` — ``POST /research`` with ``{ query, session_id? }``
+
+What this calls:
+    - ``src.agents.graph.run_research`` — LangGraph state machine
+    - ``src.db.QueryLog`` — analytics / cache-hit tracking
+"""
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +41,11 @@ async def research(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Run a question through cache_check → supervisor → research → (synthesis).
+
+    ``session_id`` threads LangGraph MemorySaver state; generated if omitted.
+    """
     import uuid
     session_id = req.session_id or str(uuid.uuid4())
     state = run_research(req.query, session_id=session_id)

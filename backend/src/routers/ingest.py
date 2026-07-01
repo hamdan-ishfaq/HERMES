@@ -1,3 +1,24 @@
+"""
+Ingestion HTTP routes — load documents into the vector store.
+
+What this file does:
+    Accepts PDF uploads, web URLs, and YouTube links. Each request creates an
+    ``IngestionJob`` row, runs the appropriate loader, and stores chunks in Qdrant
+    via the shared ``get_retriever()`` singleton.
+
+Where it sits in the HERMES pipeline:
+    Write path into the knowledge base. Without ingestion, ``research_node`` has
+    nothing to retrieve.
+
+What calls this:
+    - React ``KnowledgeBaseView`` — ``POST /ingest/url``, ``/youtube``, ``/pdf``
+
+What this calls:
+    - ``src.ingestion.*_loader`` — extract text + metadata
+    - ``src.rag.factory.get_retriever`` — chunk, embed, upsert to Qdrant
+    - ``src.db.IngestionJob`` — audit trail in Postgres
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +48,11 @@ async def ingest_url_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Scrape a web page and ingest into Qdrant.
+
+    Returns job metadata on success; HTTP 422 if trafilatura cannot extract text.
+    """
     job = IngestionJob(
         user_id=current_user.id,
         source_type="url",
