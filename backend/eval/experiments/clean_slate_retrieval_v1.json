@@ -1,0 +1,323 @@
+{
+  "timestamp": "2026-07-14T17:34:02.400810",
+  "exp_name": "clean_slate_retrieval_v1",
+  "mode": "retrieval_only",
+  "questions_tested": 20,
+  "hit_rate": 1.0,
+  "mean_gold_term_recall": 1.0,
+  "mean_sec_per_query": 29.9,
+  "total_sec": 598.0,
+  "levers": {
+    "HERMES_MULTI_QUERY": "1",
+    "HERMES_GRAPH_RAG": "0",
+    "RETRIEVAL_CANDIDATES": "50",
+    "MIN_RERANK_SCORE": "0.0",
+    "RERANK_DEVICE": "cuda",
+    "EMBED_MODEL": "bge-m3",
+    "CHUNK_STRATEGY": "fixed_large",
+    "CONTEXT_PACK_TOP_K": "5"
+  },
+  "misses": [],
+  "rows": [
+    {
+      "id": "g01",
+      "question": "What is retrieval augmented generation?",
+      "n_contexts": 5,
+      "top_score": 1.0,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 73.84,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g02",
+      "question": "Who introduced the concept of retrieval augmented generation?",
+      "n_contexts": 5,
+      "top_score": 0.876,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 5.49,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g03",
+      "question": "What problem does RAG solve for language models?",
+      "n_contexts": 5,
+      "top_score": 0.9924,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 5.3,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g04",
+      "question": "What are the limitations of RAG systems?",
+      "n_contexts": 5,
+      "top_score": 0.9976,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 3.87,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g05",
+      "question": "How does RAG improve large language model performance?",
+      "n_contexts": 5,
+      "top_score": 0.9969,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 4.46,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g06",
+      "question": "What is the difference between sparse and dense retrieval in RAG?",
+      "n_contexts": 5,
+      "top_score": 0.9854,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 25.78,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g07",
+      "question": "What is chunking in the context of RAG?",
+      "n_contexts": 5,
+      "top_score": 0.94,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 4.29,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g08",
+      "question": "What benchmarks are used to evaluate RAG systems?",
+      "n_contexts": 5,
+      "top_score": 0.999,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 13.21,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g09",
+      "question": "How does RAG reduce the need for model retraining?",
+      "n_contexts": 5,
+      "top_score": 0.9932,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 36.5,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g10",
+      "question": "How does chunking strategy affect RAG performance?",
+      "n_contexts": 5,
+      "top_score": 0.9213,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 51.81,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g11",
+      "question": "What is hybrid search in a vector database?",
+      "n_contexts": 5,
+      "top_score": 0.9871,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 36.99,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g12",
+      "question": "What is Reciprocal Rank Fusion used for?",
+      "n_contexts": 5,
+      "top_score": 0.9504,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 56.23,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g13",
+      "question": "Why use both dense and sparse vectors together?",
+      "n_contexts": 5,
+      "top_score": 0.951,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 26.68,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g14",
+      "question": "What is a cross-encoder used for in retrieval?",
+      "n_contexts": 5,
+      "top_score": 0.9488,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 58.76,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g15",
+      "question": "How does a cross-encoder differ from a bi-encoder?",
+      "n_contexts": 5,
+      "top_score": 0.661,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 30.66,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g16",
+      "question": "When should you use a cross-encoder for reranking?",
+      "n_contexts": 5,
+      "top_score": 0.9618,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 30.66,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g17",
+      "question": "What is BM25 in information retrieval?",
+      "n_contexts": 5,
+      "top_score": 0.9856,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 46.58,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g18",
+      "question": "What does parent-child chunking achieve in RAG?",
+      "n_contexts": 5,
+      "top_score": 0.9629,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 11.92,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g19",
+      "question": "What is semantic caching in a RAG system?",
+      "n_contexts": 5,
+      "top_score": 0.7645,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 31.05,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    },
+    {
+      "id": "g20",
+      "question": "Why rerank after hybrid retrieval?",
+      "n_contexts": 5,
+      "top_score": 0.9783,
+      "recall_proxy": 1.0,
+      "any_hit": true,
+      "missing": [],
+      "sec": 43.91,
+      "tools": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search"
+      ]
+    }
+  ]
+}

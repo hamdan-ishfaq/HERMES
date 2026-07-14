@@ -1,0 +1,153 @@
+{
+  "version": "2.1",
+  "kb_urls": [
+    "https://en.wikipedia.org/wiki/Retrieval-augmented_generation",
+    "https://qdrant.tech/articles/hybrid-search/",
+    "https://www.sbert.net/docs/cross_encoder/usage/usage.html"
+  ],
+  "kb_files": [
+    "eval/kb/hermes_architecture.md"
+  ],
+  "items": [
+    {
+      "id": "g01",
+      "question": "What is retrieval augmented generation?",
+      "ground_truth": "Retrieval-Augmented Generation (RAG) is a technique that enhances language model responses by retrieving relevant documents from an external knowledge base before generating an answer.",
+      "gold_contexts": ["Retrieval-augmented generation", "external"],
+      "tags": ["definition"]
+    },
+    {
+      "id": "g02",
+      "question": "Who introduced the concept of retrieval augmented generation?",
+      "ground_truth": "RAG was introduced in a 2020 paper titled Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks.",
+      "gold_contexts": ["2020", "Knowledge-Intensive"],
+      "tags": ["history"]
+    },
+    {
+      "id": "g03",
+      "question": "What problem does RAG solve for language models?",
+      "ground_truth": "RAG solves the problem of LLMs relying on static training data by pulling relevant text from databases, uploaded documents, or web sources.",
+      "gold_contexts": ["static training data", "databases"],
+      "tags": ["motivation"]
+    },
+    {
+      "id": "g04",
+      "question": "What are the limitations of RAG systems?",
+      "ground_truth": "RAG systems can misinterpret retrieved data, struggle with conflicting information from multiple sources, and may produce incorrect conclusions.",
+      "gold_contexts": ["conflicting", "misinterpret"],
+      "tags": ["limitations"]
+    },
+    {
+      "id": "g05",
+      "question": "How does RAG improve large language model performance?",
+      "ground_truth": "RAG improves LLM performance by incorporating information retrieval before generating responses, allowing models to access additional data beyond their original training set.",
+      "gold_contexts": ["information retrieval", "beyond their"],
+      "tags": ["benefits"]
+    },
+    {
+      "id": "g06",
+      "question": "What is the difference between sparse and dense retrieval in RAG?",
+      "ground_truth": "Sparse vectors encode the identity of words and are typically dictionary-length with mostly zeros. Dense vectors encode semantic meaning using neural embeddings.",
+      "gold_contexts": ["Sparse vectors", "Dense vectors"],
+      "tags": ["retrieval"]
+    },
+    {
+      "id": "g07",
+      "question": "What is chunking in the context of RAG?",
+      "ground_truth": "Chunking involves breaking up source data into smaller vector segments so the retriever can find relevant details. Different chunking strategies affect retrieval precision and context quality.",
+      "gold_contexts": ["Chunking", "vectors"],
+      "tags": ["chunking"]
+    },
+    {
+      "id": "g08",
+      "question": "What benchmarks are used to evaluate RAG systems?",
+      "ground_truth": "RAG systems are commonly evaluated using benchmarks such as BEIR, a suite of information retrieval datasets designed to test retrievability, retrieval accuracy, and generative quality.",
+      "gold_contexts": ["BEIR", "information retrieval datasets"],
+      "tags": ["eval"]
+    },
+    {
+      "id": "g09",
+      "question": "How does RAG reduce the need for model retraining?",
+      "ground_truth": "RAG reduces the need for frequent model retraining by allowing LLMs to retrieve up-to-date information from external sources rather than encoding all knowledge in model weights.",
+      "gold_contexts": ["retraining", "new data"],
+      "tags": ["benefits"]
+    },
+    {
+      "id": "g10",
+      "question": "How does chunking strategy affect RAG performance?",
+      "ground_truth": "Chunking strategy affects retrieval quality. Chunks that are too small lose context, while chunks that are too large reduce precision and may exceed the model context window.",
+      "gold_contexts": ["too small", "too large", "precision"],
+      "tags": ["chunking"]
+    },
+    {
+      "id": "g11",
+      "question": "What is hybrid search in a vector database?",
+      "ground_truth": "Hybrid search combines dense vector (semantic) retrieval with sparse lexical methods such as BM25 so both meaning and exact keywords contribute to ranking.",
+      "gold_contexts": ["hybrid", "dense", "sparse"],
+      "tags": ["hybrid"]
+    },
+    {
+      "id": "g12",
+      "question": "What is Reciprocal Rank Fusion used for?",
+      "ground_truth": "Reciprocal Rank Fusion (RRF) merges ranked lists from multiple retrievers by combining reciprocal ranks, producing a single fused ranking without needing calibrated scores.",
+      "gold_contexts": ["Reciprocal Rank Fusion", "RRF"],
+      "tags": ["hybrid"]
+    },
+    {
+      "id": "g13",
+      "question": "Why use both dense and sparse vectors together?",
+      "ground_truth": "Dense vectors capture semantic similarity while sparse vectors excel at exact keyword and rare-term matching; combining them improves robustness across query types.",
+      "gold_contexts": ["semantic", "keyword", "sparse"],
+      "tags": ["hybrid"]
+    },
+    {
+      "id": "g14",
+      "question": "What is a cross-encoder used for in retrieval?",
+      "ground_truth": "A cross-encoder jointly encodes the query and a candidate passage to produce a relevance score, typically used to rerank a shortlist from a faster bi-encoder or hybrid retriever.",
+      "gold_contexts": ["CrossEncoder", "re-rank"],
+      "tags": ["rerank"]
+    },
+    {
+      "id": "g15",
+      "question": "How does a cross-encoder differ from a bi-encoder?",
+      "ground_truth": "A bi-encoder embeds query and document independently for fast similarity search; a cross-encoder reads them together for higher accuracy at higher computational cost.",
+      "gold_contexts": ["bi-encoder", "Cross Encoder"],
+      "tags": ["rerank"]
+    },
+    {
+      "id": "g16",
+      "question": "When should you use a cross-encoder for reranking?",
+      "ground_truth": "Cross-encoders are typically applied after retrieving a limited candidate set (for example top-20) because scoring every document jointly with the query is too slow for full-corpus search.",
+      "gold_contexts": ["top-20", "candidate set"],
+      "tags": ["rerank"]
+    },
+    {
+      "id": "g17",
+      "question": "What is BM25 in information retrieval?",
+      "ground_truth": "BM25 is a classic sparse ranking function based on term frequency and inverse document frequency, often used for lexical matching in hybrid search systems.",
+      "gold_contexts": ["BM25", "term frequency"],
+      "tags": ["hybrid"]
+    },
+    {
+      "id": "g18",
+      "question": "What does parent-child chunking achieve in RAG?",
+      "ground_truth": "Parent-child chunking indexes small child chunks for precise retrieval while returning larger parent chunks to the language model for richer generation context.",
+      "gold_contexts": ["Parent-child chunking", "child chunks", "parent chunks"],
+      "tags": ["chunking"]
+    },
+    {
+      "id": "g19",
+      "question": "What is semantic caching in a RAG system?",
+      "ground_truth": "Semantic caching stores embeddings of prior queries and returns a cached answer when a new query is sufficiently similar, avoiding repeated retrieval and generation.",
+      "gold_contexts": ["Semantic caching", "cached answer", "embedding"],
+      "tags": ["cache"]
+    },
+    {
+      "id": "g20",
+      "question": "Why rerank after hybrid retrieval?",
+      "ground_truth": "Hybrid retrieval is fast but approximate; a cross-encoder reranker rescores the fused candidates jointly with the query to improve precision of the final contexts sent to the LLM.",
+      "gold_contexts": ["cross-encoder reranker", "precision", "candidates"],
+      "tags": ["rerank"]
+    }
+  ]
+}
