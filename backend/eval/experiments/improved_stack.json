@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-07-14T14:58:51.560407",
+  "exp_name": "improved_stack",
+  "questions_tested": 20,
+  "levers": {
+    "MIN_RERANK_SCORE": 0.35,
+    "RETRIEVAL_CANDIDATES": 50,
+    "HERMES_MULTI_QUERY": "1",
+    "HERMES_CRAG_LITE": "1",
+    "CONTEXT_PACK_TOP_K": 3,
+    "HERMES_SIMPLE_MODEL": "complex",
+    "CHILD_CHUNK_SIZE": 200,
+    "CHILD_CHUNK_OVERLAP": 40,
+    "LLM_PROVIDER": "openrouter",
+    "OLLAMA_API_BASE": "http://localhost:11434",
+    "judge": "openrouter/google/gemini-2.5-flash-lite"
+  },
+  "faithfulness": 0.9444,
+  "answer_relevancy": 0.6826,
+  "context_precision": 0.5375,
+  "context_recall": 0.65
+}

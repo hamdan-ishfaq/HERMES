@@ -4,25 +4,19 @@
  * Role in the UI:
  *   - Default landing page at `/` inside the authenticated shell.
  *   - Maintains a scrollable conversation history with user and assistant bubbles.
- *   - Renders markdown answers, source citations, cache-hit badges, and model labels.
+ *   - Renders markdown answers, source citations, tool traces, cache-hit badges.
+ *   - Prefers POST /research/stream (SSE tokens); falls back to POST /research JSON.
  *   - Persists chat history and session ID in `sessionStorage` for tab-level continuity.
- *
- * API endpoints:
- *   - POST /research — send `{ query, session_id? }`, receive answer + citations
  */
 
 import React, { useState, useRef, useEffect } from "react";
 import client from "../api/client";
-import { motion, AnimatePresence } from "framer-motion";
-import { Send, Loader2, FileText, Zap, User, Hexagon, ExternalLink } from "lucide-react";
+import { motion } from "framer-motion";
+import { Send, Loader2, FileText, Zap, User, Hexagon, ExternalLink, Wrench } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
-/**
- * Compact horizontal card for a single citation returned by the research endpoint.
- * Distinguishes web URLs (clickable) from PDF page references (static text).
- *
- * @param {{ citation: object, index: number }} props
- */
+const API_BASE = "http://localhost:8000/api";
+
 function CitationCard({ citation, index }) {
   const isUrl = !!citation.url;
   const linkText = isUrl ? (citation.title || citation.source || "Web Page") : `Page ${citation.page_num || "Web Page"}`;
@@ -60,9 +54,60 @@ function CitationCard({ citation, index }) {
   );
 }
 
+function ToolTrace({ tools }) {
+  if (!tools || tools.length === 0) return null;
+  return (
+    <details className="mt-3 w-full text-xs text-zinc-500">
+      <summary className="cursor-pointer flex items-center gap-1.5 text-zinc-400 hover:text-zinc-300 px-1">
+        <Wrench className="w-3 h-3" />
+        Tools used ({tools.length})
+      </summary>
+      <ul className="mt-2 space-y-1 pl-4 border-l border-white/10">
+        {tools.map((t, i) => (
+          <li key={i} className="font-mono text-[11px] text-zinc-500">
+            <span className="text-zinc-300">{t.name}</span>
+            {t.summary ? ` — ${t.summary}` : ""}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /**
- * Full-page research chat — manages message state, API calls, and auto-scroll.
+ * Parse SSE frames from a fetch ReadableStream (Bearer auth).
  */
+async function consumeResearchStream(body, onEvent) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let eventName = "message";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n");
+    buffer = parts.pop() || "";
+    for (const line of parts) {
+      if (line.startsWith("event:")) {
+        eventName = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        const raw = line.slice(5).trim();
+        if (!raw) continue;
+        try {
+          onEvent(eventName, JSON.parse(raw));
+        } catch {
+          /* ignore malformed frames */
+        }
+        eventName = "message";
+      } else if (line.trim() === "") {
+        eventName = "message";
+      }
+    }
+  }
+}
+
 export default function ResearchView() {
   const [messages, setMessages] = useState(() => {
     const saved = sessionStorage.getItem("hermes_chat_history");
@@ -75,56 +120,105 @@ export default function ResearchView() {
   });
   const bottomRef = useRef(null);
 
-  /** Mirror chat history to sessionStorage whenever messages change. */
   useEffect(() => {
     sessionStorage.setItem("hermes_chat_history", JSON.stringify(messages));
   }, [messages]);
 
-  /** Keep the viewport pinned to the latest message or loading indicator. */
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  /**
-   * Send the user's query to POST /research and append the assistant reply.
-   * Captures `session_id` from the first response for multi-turn context.
-   */
+  const applySession = (newSessionId) => {
+    if (!sessionId && newSessionId) {
+      setSessionId(newSessionId);
+      sessionStorage.setItem("hermes_session_id", newSessionId);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
     const query = input.trim();
     setInput("");
-    
+
     const userMsg = { role: "user", content: query };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      { role: "assistant", content: "", citations: [], tool_trace: [], streaming: true },
+    ]);
     setLoading(true);
 
+    const payload = { query, session_id: sessionId || undefined };
+    const token = localStorage.getItem("hermes_access_token");
+
+    const patchAssistant = (updater) => {
+      setMessages((prev) => {
+        const next = [...prev];
+        const idx = next.length - 1;
+        if (idx < 0 || next[idx].role !== "assistant") return prev;
+        next[idx] = updater(next[idx]);
+        return next;
+      });
+    };
+
     try {
-      const res = await client.post("/research", { 
-        query,
-        session_id: sessionId || undefined
+      const res = await fetch(`${API_BASE}/research/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
       });
 
-      const newSessionId = res.data.session_id;
-      if (!sessionId && newSessionId) {
-        setSessionId(newSessionId);
-        sessionStorage.setItem("hermes_session_id", newSessionId);
+      if (!res.ok || !res.body) {
+        throw new Error(`stream HTTP ${res.status}`);
       }
 
-      const aiMsg = { 
-        role: "assistant", 
-        content: res.data.answer, 
-        citations: res.data.citations,
-        cache_hit: res.data.cache_hit,
-        model: res.data.model_used
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", error: true, content: "Sorry, I encountered an error during research. Please try again." }
-      ]);
+      await consumeResearchStream(res.body, (event, data) => {
+        if (event === "token" && data.text) {
+          patchAssistant((msg) => ({
+            ...msg,
+            content: (msg.content || "") + data.text,
+          }));
+        } else if (event === "done") {
+          applySession(data.session_id);
+          patchAssistant((msg) => ({
+            role: "assistant",
+            content: data.answer || msg.content || "",
+            citations: data.citations || [],
+            tool_trace: data.tool_trace || [],
+            cache_hit: data.cache_hit,
+            model: data.model_used,
+            streaming: false,
+          }));
+        } else if (event === "error") {
+          throw new Error(data.detail || "stream error");
+        }
+      });
+    } catch {
+      try {
+        const res = await client.post("/research", payload);
+        applySession(res.data.session_id);
+        patchAssistant(() => ({
+          role: "assistant",
+          content: res.data.answer,
+          citations: res.data.citations,
+          tool_trace: res.data.tool_trace || [],
+          cache_hit: res.data.cache_hit,
+          model: res.data.model_used,
+          streaming: false,
+        }));
+      } catch {
+        patchAssistant(() => ({
+          role: "assistant",
+          error: true,
+          content: "Sorry, I encountered an error during research. Please try again.",
+          streaming: false,
+        }));
+      }
     } finally {
       setLoading(false);
     }
@@ -132,13 +226,11 @@ export default function ResearchView() {
 
   return (
     <div className="flex flex-col h-screen max-h-screen relative">
-      {/* Page header */}
       <div className="flex-none p-6 pb-2 pl-8 lg:pl-12">
         <h1 className="text-3xl font-semibold tracking-tight text-white">Research Agent</h1>
         <p className="text-zinc-400 mt-1">Ask questions spanning your ingested knowledge base.</p>
       </div>
 
-      {/* Chat area — message list, empty state, loading dots */}
       <div className="flex-1 overflow-y-auto px-4 lg:px-12 py-6 flex flex-col gap-8 pb-32">
         {messages.length === 0 && !loading && (
           <div className="flex-1 flex flex-col items-center justify-center text-center opacity-70 mt-20">
@@ -157,14 +249,12 @@ export default function ResearchView() {
             animate={{ opacity: 1, y: 0 }}
             className={`flex w-full gap-4 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
           >
-            {/* Avatar — user icon vs. Hermes hexagon */}
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1 ${
               msg.role === "user" ? "bg-zinc-800" : "bg-white text-zinc-950"
             }`}>
               {msg.role === "user" ? <User className="w-4 h-4 text-zinc-300" /> : <Hexagon className="w-5 h-5 fill-zinc-950" />}
             </div>
 
-            {/* Message bubble + metadata + citations */}
             <div className={`flex flex-col max-w-[85%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
               {msg.role === "assistant" && (msg.cache_hit || msg.model) && (
                 <div className="flex items-center gap-2 mb-2 px-1">
@@ -180,7 +270,7 @@ export default function ResearchView() {
                   )}
                 </div>
               )}
-              
+
               <div
                 className={`px-5 py-4 rounded-3xl ${
                   msg.role === "user"
@@ -192,14 +282,15 @@ export default function ResearchView() {
               >
                 {msg.role === "assistant" && !msg.error ? (
                   <div className="prose prose-invert prose-zinc max-w-none text-[15px] leading-relaxed prose-p:my-2 prose-pre:bg-zinc-900/50 prose-pre:border prose-pre:border-white/5">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown>{msg.content || (msg.streaming ? "…" : "")}</ReactMarkdown>
                   </div>
                 ) : (
                   <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</div>
                 )}
               </div>
 
-              {/* Citations row — horizontally scrollable source cards */}
+              {msg.role === "assistant" && <ToolTrace tools={msg.tool_trace} />}
+
               {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
                 <div className="mt-4 w-full">
                   <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 px-2">Sources</div>
@@ -216,7 +307,7 @@ export default function ResearchView() {
           </motion.div>
         ))}
 
-        {loading && (
+        {loading && messages[messages.length - 1]?.role !== "assistant" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-4">
             <div className="w-8 h-8 rounded-full bg-white text-zinc-950 flex items-center justify-center flex-shrink-0 mt-1">
                <Hexagon className="w-5 h-5 fill-zinc-950 animate-pulse" />
@@ -231,7 +322,6 @@ export default function ResearchView() {
         <div ref={bottomRef} className="h-4 w-full" />
       </div>
 
-      {/* Floating input area — fixed to bottom with gradient fade */}
       <div className="absolute bottom-0 left-0 right-0 p-4 lg:p-8 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent pointer-events-none flex justify-center">
         <div className="w-full max-w-3xl pointer-events-auto">
           <form

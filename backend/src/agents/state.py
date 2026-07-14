@@ -64,6 +64,16 @@ class ResearchState(TypedDict):
     draft_answer: str
     final_answer: str
 
+    # Multi-turn memory (HE-2) — prior turns + rewritten retrieval query
+    messages: list[dict]
+    rewritten_query: str
+
+    # Tool calling (HE-7) — list of {name, args, ok, summary}
+    tool_trace: list[dict]
+
+    # Workspace ACL (HE-4) — string form of user id for Qdrant filter
+    user_id: Optional[str]
+
     # Metadata — surfaced in API response and QueryLog
     cache_hit: bool
     model_used: str

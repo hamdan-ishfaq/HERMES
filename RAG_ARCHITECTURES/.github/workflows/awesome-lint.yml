@@ -1,0 +1,36 @@
+name: Awesome Lint (Advisory)
+
+on:
+  push:
+    paths:
+      - 'README.md'
+  pull_request:
+    paths:
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  awesome-lint:
+    runs-on: ubuntu-latest
+    # Advisory: failures are surfaced as annotations but do NOT block merges.
+    # This list intentionally deviates from strict awesome-lint in places
+    # (two-line bullets, decision guides, evidence tables) — see CONTRIBUTING.md § Style Notes.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4.2.0
+        with:
+          node-version: 20
+
+      - name: Run awesome-lint
+        # Advisory: this list intentionally deviates from strict awesome-lint
+        # (see CONTRIBUTING.md § Style Notes). continue-on-error keeps the check
+        # green while still surfacing findings in the log.
+        continue-on-error: true
+        run: npx --yes awesome-lint README.md

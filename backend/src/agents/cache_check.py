@@ -41,8 +41,13 @@ def cache_check_node(state: ResearchState) -> ResearchState:
     print(f"\n[Cache] Checking semantic cache for: {state['query'][:60]}...")
 
     retriever = get_retriever()
+    user_id = state.get("user_id")
     # Cache can be disabled on the retriever (e.g. some tests); treat as miss.
-    cached = retriever.cache.get(state["query"]) if retriever.use_cache else None
+    cached = (
+        retriever.cache.get(state["query"], user_id=user_id)
+        if retriever.use_cache
+        else None
+    )
 
     if cached and "answer" in cached:
         # Hit — replay stored pipeline outputs without re-running downstream nodes.

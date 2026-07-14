@@ -10,6 +10,21 @@
 
 ---
 
+## Portfolio positioning
+
+HERMES is the **Applied AI / agentic RAG** portfolio star (foundation-model stack, hybrid retrieval, LangGraph agents, semantic cache, honest RAGAS).
+
+**Suggested CV order**
+
+- Applied AI / Optimization (BMW-adjacent): HaulRank → **HERMES** → JurisGuard (1–2 bullets) → TALASH
+- Agentic systems: NEXUS → **HERMES** (expanded) → JurisGuard (short) → HaulRank
+
+**Not claimed here:** SSO/SCIM/WORM legal platforms, multi-tenant production SaaS, or user-profile personalization (see NEXUS). JurisGuard remains a supporting on-prem / air-gap story elsewhere — not this repo’s lead claim.
+
+See [`docs/CV_BULLETS.md`](docs/CV_BULLETS.md) for ready-to-paste CV lines.
+
+---
+
 ## What it does
 
 - **Ingest** PDFs, web pages, and YouTube transcripts into a hybrid vector store.
@@ -17,7 +32,11 @@
 - **Retrieve** with hybrid dense + sparse search, fuse with RRF, and rerank with a cross-encoder before any LLM call.
 - **Cache** semantically similar questions to skip the pipeline on repeats.
 - **Track** answer quality with RAGAS (faithfulness, answer relevancy, context precision/recall).
-
+- **Multi-turn memory:** last N turns in Postgres feed a query-rewrite step so follow-ups retrieve with prior entities (not long-term user profiles). Disable with `HERMES_MULTI_TURN=0`.
+- **Named tools + traces:** research always calls `hybrid_search` first; API/UI return `tool_trace` (empty-KB answers do not invent sources).
+- **Workspace-scoped KB:** ingest stamps `user_id` on Qdrant payloads; query filters by the JWT user. Re-ingest after upgrading from pre-ACL collections.
+- **Real token streaming:** `POST /api/research/stream` emits SSE token events (JSON `POST /api/research` still available).
+- **MCP:** `uv run python -m src.mcp.server` exposes `hermes_search` / `hermes_research` over stdio for MCP Inspector.
 ---
 
 ## Architecture
@@ -47,7 +66,7 @@ flowchart TD
     Synthesis --> UI
 ```
 
-The LangGraph pipeline is: `START → cache_check → [END on hit | supervisor → research_agent → (synthesis_agent) → END]`. The supervisor classifies query complexity; simple queries finish after research, while multi-hop/synthesis queries get a second synthesis pass.
+The LangGraph pipeline is: `START → cache_check → [END on hit | supervisor → query_rewrite → research_agent → (synthesis_agent) → END]`. The supervisor classifies query complexity; simple queries finish after research, while multi-hop/synthesis queries get a second synthesis pass.
 
 ---
 
@@ -68,15 +87,24 @@ A Redis-backed cache embeds each query and compares against stored queries by co
 ### LangGraph agents (`backend/src/agents/`)
 - `cache_check.py` — semantic cache gate (entry node).
 - `supervisor.py` — classifies complexity (simple / multi-hop / synthesis).
-- `research.py` — retrieves, reranks, and drafts an answer with citations.
+- `query_rewrite.py` — expands follow-ups using prior turns before retrieval.
+- `research.py` — forced `hybrid_search` tool, rerank, draft answer + citations + `tool_trace`.
 - `synthesis.py` — refines multi-hop / cross-document answers.
+- `stream_research.py` — real token SSE event generator.
 
 ### FastAPI + JWT (`backend/src/`)
 - `POST /api/auth/register`, `POST /api/auth/login` — JWT auth.
-- `POST /api/research` — run a query (Bearer token required).
-- `POST /api/ingest/pdf`, `/api/ingest/url`, `/api/ingest/youtube` — ingestion.
+- `POST /api/research` — JSON Q&A (Bearer token required).
+- `POST /api/research/stream` — SSE token stream (same auth/body).
+- `POST /api/ingest/pdf`, `/api/ingest/url`, `/api/ingest/youtube` — ingestion (stamps `user_id`).
 - `GET /api/eval/dashboard`, `POST /api/eval/run` — RAGAS reporting.
 
+### MCP (`backend/src/mcp/server.py`)
+```bash
+cd backend && uv run python -m src.mcp.server
+# Connect MCP Inspector via stdio — tools: hermes_search, hermes_research
+```
+`hermes_research` is a local/dev tool (no JWT); do not expose unauthenticated in production.
 ---
 
 ## Evaluation (RAGAS)
@@ -143,6 +171,12 @@ npm run dev
 
 ## Tests
 
+| Suite | Command | Requires |
+|---|---|---|
+| Unit (CI) | `cd backend && uv run pytest -m "not integration"` | Postgres (+ Redis optional) |
+| Integration | `cd backend && uv run pytest -m integration` | Qdrant + Ollama + Redis |
+| RAGAS | `cd backend && uv run python -m src.evaluation.ragas_eval` | Full stack + judge model |
+
 ```bash
 cd backend
 uv run pytest -m "not integration"      # unit tests (mocked, used in CI)
@@ -160,12 +194,16 @@ hermes/
 │   │   ├── agents/
 │   │   │   ├── cache_check.py   # semantic cache gate (entry node)
 │   │   │   ├── supervisor.py    # complexity classification + routing
-│   │   │   ├── research.py      # retrieval + draft answer + citations
+│   │   │   ├── query_rewrite.py # multi-turn retrieval rewrite
+│   │   │   ├── research.py      # hybrid_search tool + draft + citations
 │   │   │   ├── synthesis.py     # multi-hop / cross-doc refinement
+│   │   │   ├── stream_research.py
 │   │   │   └── graph.py         # LangGraph wiring
+│   │   ├── tools/               # hybrid_search, fetch_parent, web_fetch
+│   │   ├── mcp/                 # MCP stdio server
 │   │   ├── rag/
 │   │   │   ├── factory.py       # shared retriever singleton
-│   │   │   ├── retriever.py     # Qdrant hybrid search + RRF
+│   │   │   ├── retriever.py     # Qdrant hybrid search + RRF + ACL filter
 │   │   │   ├── reranker.py      # cross-encoder reranking
 │   │   │   ├── chunker.py       # parent-child chunking
 │   │   │   └── cache.py         # Redis semantic cache
@@ -183,4 +221,4 @@ hermes/
 
 ## Scope
 
-This is a focused implementation of agentic RAG. Intentionally **not** included: CRAG/Self-RAG reflection loops, long-term conversational memory, query expansion, and token-level streaming. These are possible future extensions, not current features.
+This is a focused implementation of agentic RAG. Intentionally **not** included: CRAG/Self-RAG reflection loops, long-term user-profile personalization, Juris-class RBAC/SSO/SCIM/WORM, and competing with enterprise legal platforms. Workspace-scoped KB filtering is not a full RBAC platform.

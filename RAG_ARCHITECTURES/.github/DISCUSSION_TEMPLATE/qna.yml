@@ -1,0 +1,18 @@
+name: Ask a Question
+description: Ask the community about RAG in production — vector DB selection, latency, evaluation, or anything else.
+title: "[Q&A]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Have a question about RAG in production?**
+        Ask the community here! Whether it's about vector DB selection, latency optimization, or retrieval strategies.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What is your question?
+      placeholder: "How do I handle multi-hop retrieval efficiently?"
+    validations:
+      required: true

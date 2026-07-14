@@ -1,7 +1,17 @@
 # HERMES — Complete Code Walkthrough
 
 > **Audience:** Someone new to the project who wants to understand every file, function, and how data moves through the system.  
-> **Companion docs:** `README.md` (public summary) · `HANDOFF.md` (operations reference)
+> **Companion docs:** `README.md` (public summary) · `HANDOFF.md` (operations reference) · `docs/CV_BULLETS.md` (interview lines)
+
+---
+
+## 0. Interview framing
+
+**What you can defend:** hybrid dense+BM25+RRF+rerank, LangGraph agents, JWT API, semantic cache latency win, RAGAS scores that match `eval_report.json`, multi-source ingest with citations.
+
+**What you must not say:** enterprise-grade / mathematically verified grounding; that chat UI history alone is “agent memory”; Juris-class SSO/RBAC as a HERMES feature; GPU production latency if the demo is still CPU-bound.
+
+HERMES is the Applied AI / agentic RAG star; JurisGuard is a short supporting on-prem story elsewhere.
 
 ---
 

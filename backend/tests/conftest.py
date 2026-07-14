@@ -31,12 +31,16 @@ from src.db import engine, Base
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def create_test_tables():
-    """Create all ORM tables once per test session; tear down on exit."""
+    """
+    Ensure ORM tables exist for the test session.
+
+    Does NOT drop tables on teardown — the hermes Postgres is shared with local
+    API/E2E runs; dropping would break live servers mid-session.
+    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -45,7 +49,8 @@ async def truncate_tables():
     yield
     async with engine.begin() as conn:
         await conn.execute(text(
-            "TRUNCATE users, ingestion_jobs, query_logs RESTART IDENTITY CASCADE"
+            "TRUNCATE users, ingestion_jobs, query_logs, conversation_turns "
+            "RESTART IDENTITY CASCADE"
         ))
 
 
@@ -91,5 +96,7 @@ def mock_run_research():
             "citations": [{"source": "wiki", "page_num": 1, "context": "...", "score": 9.1}],
             "model_used": "ollama/llama3.1:8b",
             "cache_hit": False,
+            "tool_trace": [],
+            "rewritten_query": "What is RAG?",
         }
         yield mock

@@ -61,6 +61,7 @@ class User(Base):
 
     ingestion_jobs: Mapped[list["IngestionJob"]] = relationship(back_populates="user")
     query_logs: Mapped[list["QueryLog"]] = relationship(back_populates="user")
+    conversation_turns: Mapped[list["ConversationTurn"]] = relationship(back_populates="user")
 
 
 class IngestionJob(Base):
@@ -103,6 +104,24 @@ class QueryLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped["User"] = relationship(back_populates="query_logs")
+
+
+class ConversationTurn(Base):
+    """
+    One user or assistant message in a research session (multi-turn memory).
+
+    Used to rewrite follow-up queries for retrieval — not long-term profiles.
+    """
+    __tablename__ = "conversation_turns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    session_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)  # user | assistant
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="conversation_turns")
 
 
 async def get_db():

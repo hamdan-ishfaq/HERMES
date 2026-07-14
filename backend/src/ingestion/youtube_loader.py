@@ -89,7 +89,11 @@ def _format_timestamp(seconds: int) -> str:
     return f"{m}:{s:02d}"
 
 
-def ingest_youtube(url_or_id: str, retriever: HermesRetriever) -> dict:
+def ingest_youtube(
+    url_or_id: str,
+    retriever: HermesRetriever,
+    extra_metadata: dict | None = None,
+) -> dict:
     """Full pipeline: YouTube URL → transcript → chunk → embed → store."""
     video_id = extract_video_id(url_or_id)
 
@@ -118,12 +122,12 @@ def ingest_youtube(url_or_id: str, retriever: HermesRetriever) -> dict:
             metadata={
                 "source": f"youtube:{video_id}",
                 "title": title,
-                # Deep-link to the exact moment for this chunk.
                 "url": f"https://www.youtube.com/watch?v={video_id}&t={start}s",
                 "page_num": None,
                 "timestamp": chunk["timestamp"],
                 "start_seconds": start,
                 "type": "youtube",
+                **(extra_metadata or {}),
             }
         )
         total_parents += stats["parents"]

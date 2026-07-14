@@ -93,7 +93,8 @@ def synthesis_node(state: ResearchState) -> ResearchState:
                 "contexts": state.get("retrieved_contexts", []),
                 "answer": final_answer,
                 "citations": state.get("citations", [])
-            }
+            },
+            user_id=state.get("user_id"),
         )
 
     return {

@@ -1,8 +1,18 @@
 # HERMES — Complete Project Handoff Document
 
-**Version:** 0.1.0 (post Resume-Honest Fix)  
-**Last updated:** June 2026  
+**Version:** 0.2.0 (HE elevation in progress)  
+**Last updated:** July 2026  
 **Repository:** `/home/mhamd/HERMES-clean`
+
+---
+
+## Portfolio role (2026-07-14)
+
+HERMES is promoted as the **Applied AI / agentic-RAG star** (replaces JurisGuard as lead RAG story). JurisGuard is demoted to supporting only (1–2 on-prem / air-gap / eval bullets). Why: HERMES has a cleaner foundation-model shape (LangGraph + hybrid RAG + semantic cache + honest RAGAS + multi-source ingest) that interviews can defend; Juris CV weight leaned on enterprise theater (SSO/WORM/legal) that interviews punish.
+
+**CV order:** Applied → HaulRank → HERMES → Juris (short) → TALASH · Agentic → NEXUS → HERMES → Juris (short) → HaulRank.
+
+Ready-to-paste bullets: [`docs/CV_BULLETS.md`](docs/CV_BULLETS.md). Public summary: [`README.md`](README.md). Code walkthrough: [`EXPLANATION.md`](EXPLANATION.md).
 
 ---
 
@@ -712,26 +722,22 @@ These fixes were applied to make the codebase truthfully match the portfolio des
 
 | Limitation | Detail |
 |---|---|
-| **No multi-turn memory** | `MemorySaver` checkpointer exists for `session_id` threading, but the research node does not meaningfully use conversation history for retrieval. Frontend persists chat UI state only. |
 | **CPU-bound generation** | Without GPU passthrough to Ollama in WSL, first query takes ~150s. GPU (RTX 4050) dramatically improves this. |
-| **No streaming** | Answers return as complete JSON responses. No token-level SSE. |
-| **Single collection** | All users share one Qdrant collection (`hermes_docs`). No per-user ACL or document isolation. |
 | **Cache is process-local stats** | `SemanticCache.hits/misses` counters are in-memory; only query_logs in Postgres tracks cache hits persistently. |
 | **RAGAS not in CI** | Eval requires running Ollama judge (~15–20 min). Run manually or via API. |
-| **Old Qdrant points** | Documents ingested before the parent_text fix lack `parent_text` in payload. Re-ingest for full parent expansion (fallback to child text still works). |
+| **Pre-ACL Qdrant points** | Documents ingested before workspace ACL lack `user_id` in payload and are invisible when filtering. **Re-ingest after upgrade.** |
+| **Old parent_text points** | Documents ingested before the parent_text fix lack `parent_text` in payload. Re-ingest for full parent expansion (fallback to child text still works). |
 
-### Explicitly not built (future v2 candidates)
+### Explicitly not built (future / deferred)
 
 - CRAG / Self-RAG reflection loops
-- Long-term conversational memory (Mem0, Postgres checkpointer)
+- Long-term user-profile memory (Mem0) — multi-turn rewrite is short-term only
 - Query expansion / HyDE
-- Real SSE token streaming
 - OpenRouter migration
-- Per-user document ACL
+- Juris-class RBAC / SSO / SCIM / WORM
+- Public demo deploy (HE-3 deferred)
 - Langfuse observability
-- 50+ golden question CI gate
-- Adaptive routing beyond simple/multi_hop/synthesis
-
+- Full ReAct multi-tool loop (`HERMES_TOOL_LOOP=react` stretch)
 ---
 
 ## 15. Troubleshooting

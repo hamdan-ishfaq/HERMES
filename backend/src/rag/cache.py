@@ -29,7 +29,7 @@ def _embed_single(text: str) -> list[float]:
     resp = httpx.post(
         f"{base}/api/embed",
         json={"model": EMBEDDING_MODEL, "input": text},
-        timeout=30,
+        timeout=float(os.getenv("OLLAMA_EMBED_TIMEOUT", "120")),
     )
     resp.raise_for_status()
     return resp.json()["embeddings"][0]
@@ -58,16 +58,18 @@ class SemanticCache:
     def _cache_key(self, query: str) -> str:
         return f"hermes:query:{hashlib.md5(query.encode()).hexdigest()}"
 
-    def _index_key(self) -> str:
-        return "hermes:cache:index"
+    def _index_key(self, user_id: str | None = None) -> str:
+        # Per-user namespace so ACL cannot leak answers via shared semantic cache.
+        scope = str(user_id) if user_id is not None else "public"
+        return f"hermes:cache:index:{scope}"
 
-    def get(self, query: str) -> dict | None:
+    def get(self, query: str, user_id: str | None = None) -> dict | None:
         """
-        Check if a semantically similar query is cached.
+        Check if a semantically similar query is cached for this user scope.
         Returns cached result dict or None.
         """
         # Get all cached entries
-        index = self.redis.lrange(self._index_key(), 0, -1)
+        index = self.redis.lrange(self._index_key(user_id), 0, -1)
         if not index:
             self.misses += 1
             return None
@@ -104,25 +106,27 @@ class SemanticCache:
         self.misses += 1
         return None
 
-    def set(self, query: str, result: dict) -> None:
-        """Cache a query result with its embedding."""
+    def set(self, query: str, result: dict, user_id: str | None = None) -> None:
+        """Cache a query result with its embedding under the user's scope."""
         embedding = _embed_single(query)
         entry = {
             "query": query,
             "embedding": embedding,
             "result": result,
+            "user_id": user_id,
         }
         # Store in list — simple approach, works for portfolio scale
-        self.redis.lpush(self._index_key(), json.dumps(entry))
-        self.redis.expire(self._index_key(), CACHE_TTL)
+        key = self._index_key(user_id)
+        self.redis.lpush(key, json.dumps(entry))
+        self.redis.expire(key, CACHE_TTL)
 
-    def stats(self) -> dict:
+    def stats(self, user_id: str | None = None) -> dict:
         total = self.hits + self.misses
         return {
             "hits": self.hits,
             "misses": self.misses,
             "hit_rate": round(self.hits / total, 3) if total > 0 else 0.0,
-            "cached_entries": self.redis.llen(self._index_key()),
+            "cached_entries": self.redis.llen(self._index_key(user_id)),
         }
 
 

@@ -29,18 +29,16 @@ from src.rag.retriever import HermesRetriever
 _retriever: HermesRetriever | None = None
 
 
-def get_retriever() -> HermesRetriever:
+def get_retriever(use_cache: bool = True, use_reranker: bool = True) -> HermesRetriever:
     """
     Return the process-wide ``HermesRetriever``, creating it on first use.
-
-    Default flags: semantic cache on, cross-encoder reranker on.
 
     Returns:
         Shared ``HermesRetriever`` instance.
     """
     global _retriever
     if _retriever is None:
-        _retriever = HermesRetriever(use_cache=True, use_reranker=True)
+        _retriever = HermesRetriever(use_cache=use_cache, use_reranker=use_reranker)
     return _retriever
 
 

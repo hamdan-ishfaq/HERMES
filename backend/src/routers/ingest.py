@@ -64,7 +64,14 @@ async def ingest_url_endpoint(
     await db.refresh(job)
 
     try:
-        result = ingest_url(req.url, get_retriever())
+        result = ingest_url(
+            req.url,
+            get_retriever(),
+            extra_metadata={
+                "user_id": str(current_user.id),
+                "workspace_id": str(current_user.id),
+            },
+        )
         if result.get("status") == "failed":
             raise HTTPException(
                 status_code=422,
@@ -104,7 +111,14 @@ async def ingest_youtube_endpoint(
     await db.refresh(job)
 
     try:
-        result = ingest_youtube(req.url, get_retriever())
+        result = ingest_youtube(
+            req.url,
+            get_retriever(),
+            extra_metadata={
+                "user_id": str(current_user.id),
+                "workspace_id": str(current_user.id),
+            },
+        )
         if result.get("status") == "failed":
             raise HTTPException(
                 status_code=422,
@@ -152,7 +166,14 @@ async def ingest_pdf_endpoint(
             tmp.write(await file.read())
             tmp_path = tmp.name
 
-        result = ingest_pdf(tmp_path, get_retriever())
+        result = ingest_pdf(
+            tmp_path,
+            get_retriever(),
+            extra_metadata={
+                "user_id": str(current_user.id),
+                "workspace_id": str(current_user.id),
+            },
+        )
         os.unlink(tmp_path)
 
         job.status = "ok"

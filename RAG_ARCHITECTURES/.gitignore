@@ -1,0 +1,39 @@
+# Forked/reference awesome lists (not part of this repo)
+awesome-*/
+Awesome-*/
+
+# Auto-generated discovery output (posted as issue comment by discovery.yml)
+.github/PROPOSED_UPDATES.md
+
+# Python bytecode (scripts/discovery_engine.py)
+__pycache__/
+*.pyc
+
+# Virtual environments (local runs of the discovery script)
+.venv/
+venv/
+env/
+
+# Local secrets — discovery_engine.py reads GITHUB_TOKEN
+.env
+
+# Logs
+*.log
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+shared-docs/
+
+# Internal outreach / marketing drafts (never publish to the public repo)
+outreach/
+
+# mkdocs-material: generated docs staging dir + build output (under docs-site/)
+docs-site/docs/
+docs-site/site/
+# social plugin's generated card-image cache
+docs-site/.cache/

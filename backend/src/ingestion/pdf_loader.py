@@ -90,7 +90,11 @@ def load_pdf(pdf_path: str, use_unstructured: bool = False) -> list[dict]:
     return pages
 
 
-def ingest_pdf(pdf_path: str, retriever: HermesRetriever) -> dict:
+def ingest_pdf(
+    pdf_path: str,
+    retriever: HermesRetriever,
+    extra_metadata: dict | None = None,
+) -> dict:
     """
     Full pipeline: PDF → extract → chunk → embed → store in Qdrant.
     Returns ingestion stats.
@@ -112,6 +116,7 @@ def ingest_pdf(pdf_path: str, retriever: HermesRetriever) -> dict:
                 "page_num": page["page_num"],
                 "total_pages": page["total_pages"],
                 "type": "pdf",
+                **(extra_metadata or {}),
             }
         )
         total_parents += stats["parents"]

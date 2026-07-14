@@ -33,7 +33,7 @@ def fetch_url(url: str) -> tuple[str | None, str | None]:
     return text, title
 
 
-def ingest_url(url: str, retriever: HermesRetriever) -> dict:
+def ingest_url(url: str, retriever: HermesRetriever, extra_metadata: dict | None = None) -> dict:
     """Full pipeline: URL → extract → chunk → embed → store."""
     print(f"\n{'='*50}")
     print(f"Ingesting URL: {url}")
@@ -53,16 +53,15 @@ def ingest_url(url: str, retriever: HermesRetriever) -> dict:
 
     print(f"Extracted {len(text)} chars")
 
-    stats = retriever.ingest(
-        text=text,
-        metadata={
-            "source": url,
-            "url": url,
-            "title": title,
-            "page_num": 1,
-            "type": "url",
-        }
-    )
+    metadata = {
+        "source": url,
+        "url": url,
+        "title": title,
+        "page_num": 1,
+        "type": "url",
+        **(extra_metadata or {}),
+    }
+    stats = retriever.ingest(text=text, metadata=metadata)
 
     result = {
         "url": url,
