@@ -15,14 +15,13 @@ _eval_running = False
 
 def _require_eval_admin(user: User) -> None:
     """
-    Restrict eval runs to admins when EVAL_ADMIN_EMAILS is configured.
+    Restrict eval runs to the EVAL_ADMIN_EMAILS allow-list.
 
-    EVAL_ADMIN_EMAILS is a comma-separated allow-list. If it is unset/empty,
-    any authenticated user may trigger a run (convenient for local/dev use).
+    EVAL_ADMIN_EMAILS is a comma-separated allow-list. If it is unset or empty
+    the allow-list is empty, so no user matches and every run is denied —
+    fail closed, since a RAGAS run is expensive and writes eval_report.json.
     """
     raw = os.getenv("EVAL_ADMIN_EMAILS", "").strip()
-    if not raw:
-        return
     allowed = {e.strip().lower() for e in raw.split(",") if e.strip()}
     if user.email.lower() not in allowed:
         raise HTTPException(status_code=403, detail="Eval runs are restricted to admins.")
@@ -42,7 +41,8 @@ async def run_eval(
     eval_report.json, which GET /api/eval/dashboard then surfaces. This is a
     long-running job (minutes); the endpoint returns immediately.
 
-    Restricted to admins when EVAL_ADMIN_EMAILS is set (see .env.example).
+    Restricted to the EVAL_ADMIN_EMAILS allow-list (see .env.example).
+    Denied to everyone when the allow-list is unset or empty.
     """
     _require_eval_admin(current_user)
 
@@ -73,9 +73,13 @@ async def eval_dashboard(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    total = await db.execute(select(func.count()).select_from(QueryLog))
+    total = await db.execute(
+        select(func.count()).select_from(QueryLog).where(QueryLog.user_id == current_user.id)
+    )
     cache_hits = await db.execute(
-        select(func.count()).select_from(QueryLog).where(QueryLog.cache_hit == True)
+        select(func.count())
+        .select_from(QueryLog)
+        .where(QueryLog.cache_hit == True, QueryLog.user_id == current_user.id)
     )
     total_count = total.scalar() or 0
     hits_count = cache_hits.scalar() or 0
