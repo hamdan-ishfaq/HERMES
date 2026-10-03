@@ -18,7 +18,9 @@ services:
       - redis_data:/data
 
   qdrant:
-    image: qdrant/qdrant
+    # Pinned to match qdrant-client in backend/pyproject.toml; an unpinned tag
+    # silently drifts and the client refuses to talk to a mismatched server.
+    image: qdrant/qdrant:v1.19.1
     ports:
       - "6333:6333"   # REST + dashboard
       - "6334:6334"   # gRPC
