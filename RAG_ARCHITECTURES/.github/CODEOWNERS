@@ -1,6 +1,0 @@
-# Global owner — all PRs request review from the maintainer.
-* @Yigtwxx
-
-# CI/automation changes require explicit maintainer review.
-.github/ @Yigtwxx
-scripts/ @Yigtwxx
