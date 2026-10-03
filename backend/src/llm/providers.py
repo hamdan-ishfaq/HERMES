@@ -1,7 +1,10 @@
 """
 LLM provider layer — unified text generation via LiteLLM.
 
-Supports ``LLM_PROVIDER=ollama`` (local GPU) or ``openrouter`` (hosted, fast eval).
+``LLM_PROVIDER=openrouter`` selects OpenRouter-hosted models. Any other value
+(including the default, ``ollama``) selects the Groq-hosted tier map below;
+only the ``offline`` tier resolves to a local Ollama server. Per-tier models
+are overridable via env.
 """
 
 from __future__ import annotations

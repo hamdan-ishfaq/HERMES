@@ -185,13 +185,13 @@ npm run dev
 | Suite | Command | Requires |
 |---|---|---|
 | Unit (CI) | `cd backend && uv run pytest -m "not integration"` | Postgres (+ Redis optional) |
-| Integration | `cd backend && uv run pytest -m integration` | Qdrant + Ollama + Redis |
+| Integration | `cd backend && uv run pytest -m integration` | Qdrant + Redis (+ Ollama only if `EMBED_MODEL` targets it) |
 | RAGAS | `cd backend && uv run python -m src.evaluation.ragas_eval` | Full stack + judge model |
 
 ```bash
 cd backend
 uv run pytest -m "not integration"      # unit tests (mocked, used in CI)
-uv run pytest -m integration            # real Qdrant + Ollama + Redis required
+uv run pytest -m integration            # real Qdrant + Redis; Ollama only if EMBED_MODEL targets it
 ```
 
 ---
