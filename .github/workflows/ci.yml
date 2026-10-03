@@ -19,7 +19,7 @@ jobs:
         env:
           POSTGRES_USER: hermes
           POSTGRES_PASSWORD: hermes_pass
-          POSTGRES_DB: hermes_db
+          POSTGRES_DB: hermes_test
         ports:
           - 5432:5432
         options: >-
@@ -39,7 +39,7 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql+asyncpg://hermes:hermes_pass@localhost:5432/hermes_db
+      DATABASE_URL: postgresql+asyncpg://hermes:hermes_pass@localhost:5432/hermes_test
       REDIS_URL: redis://localhost:6379
       SECRET_KEY: ci_test_secret_key_32_characters_x
       QDRANT_URL: http://localhost:6333
@@ -59,3 +59,26 @@ jobs:
       - name: Run tests
         # Integration tests (real Qdrant/Ollama) are excluded from CI.
         run: uv run pytest tests/ -v --tb=short -m "not integration"
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
