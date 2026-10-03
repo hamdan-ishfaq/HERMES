@@ -66,6 +66,11 @@ def extract_text_unstructured(pdf_path: str) -> list[dict]:
     return pages
 
 
+# A PDF whose extracted text is below this is treated as having no text layer
+# (i.e. a scan) and handed to the OCR fallback.
+_NO_TEXT_LAYER_CHARS = 20
+
+
 def load_pdf(pdf_path: str, use_unstructured: bool = False) -> list[dict]:
     """
     Load a PDF and return pages.
@@ -80,11 +85,22 @@ def load_pdf(pdf_path: str, use_unstructured: bool = False) -> list[dict]:
 
     pages = extract_text_pypdf(pdf_path)
 
-    # If pypdf got very little text, it's probably scanned — use unstructured
+    # Only treat a PDF as scanned when pypdf found no text layer at all. A short
+    # document (a one-page memo, a cover sheet) is not a scan: discarding real
+    # text because it is under an arbitrary char budget loses content for no gain.
     total_chars = sum(len(p["text"]) for p in pages)
-    if total_chars < 500:
-        print(f"pypdf got {total_chars} chars — switching to unstructured")
-        return extract_text_unstructured(pdf_path)
+    if total_chars < _NO_TEXT_LAYER_CHARS:
+        print(f"pypdf got {total_chars} chars — no text layer, trying unstructured")
+        try:
+            fallback = extract_text_unstructured(pdf_path)
+        except (ImportError, ModuleNotFoundError) as e:
+            # unstructured's PDF backend needs an optional dependency chain
+            # (pdfminer.six, pi_heif, poppler). Without it, degrade to whatever
+            # pypdf found instead of failing the whole ingest with a 500.
+            print(f"unstructured unavailable ({e}); using pypdf output as-is")
+            return pages
+        if sum(len(p["text"]) for p in fallback) > total_chars:
+            return fallback
 
     print(f"pypdf extracted {len(pages)} pages, {total_chars} chars")
     return pages
