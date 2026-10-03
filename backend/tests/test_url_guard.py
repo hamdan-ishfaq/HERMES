@@ -217,3 +217,38 @@ def test_download_html_rejects_oversized_body(public_dns, monkeypatch):
 
     monkeypatch.setattr(url_loader.httpx, "Client", _Client)
     assert url_loader._download_html("http://example.com/") is None
+
+def test_client_sends_a_descriptive_user_agent(public_dns, monkeypatch):
+    """
+    httpx defaults to "python-httpx/x.y", which Wikipedia answers with 403.
+    Ingestion of the eval corpus failed on exactly that, so the header is
+    asserted rather than left to the library default.
+    """
+    from src.ingestion import url_loader
+
+    seen = {}
+
+    class FakeResp:
+        status_code = 200
+        encoding = "utf-8"
+        headers = {}
+        def raise_for_status(self): pass
+        def iter_bytes(self): return iter([b"<html>hi</html>"])
+
+    class FakeStreamCtx:
+        def __enter__(self): return FakeResp()
+        def __exit__(self, *a): return False
+
+    class FakeClient:
+        def __init__(self, **kw): seen.update(kw)
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def stream(self, method, url): return FakeStreamCtx()
+
+    monkeypatch.setattr(url_loader.httpx, "Client", FakeClient)
+    # example.com is the public host the public_dns fixture resolves.
+    url_loader._download_html("https://example.com/wiki/X")
+    headers = seen.get("headers") or {}
+    ua = headers.get("User-Agent", "")
+    assert ua and "python-httpx" not in ua, f"got {ua!r}"
+    assert "Hermes" in ua

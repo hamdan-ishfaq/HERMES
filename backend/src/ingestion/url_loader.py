@@ -17,6 +17,10 @@ from src.ingestion.url_guard import validate_public_url
 from src.rag.retriever import HermesRetriever
 
 FETCH_TIMEOUT = 15.0
+
+# Identify the fetcher honestly; contact details are optional but a stable
+# product token is what most sites gate on.
+USER_AGENT = "HermesRAG/1.0 (+https://github.com/hamdan-ishfaq/HERMES)"
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 MAX_REDIRECTS = 3
 REDIRECT_STATUSES = (301, 302, 303, 307, 308)
@@ -37,7 +41,14 @@ def _download_html(url: str) -> str | None:
     # (e.g. a custom transport that dials the validated address with a
     # matching Host header / SNI). This narrows the window; it does not close it.
     current = url
-    with httpx.Client(follow_redirects=False, timeout=FETCH_TIMEOUT) as client:
+    # A descriptive User-Agent is required, not cosmetic: httpx sends
+    # "python-httpx/x.y", and sites including Wikipedia answer that with
+    # 403 Forbidden. Ingestion of the evaluation corpus failed on exactly this.
+    with httpx.Client(
+        follow_redirects=False,
+        timeout=FETCH_TIMEOUT,
+        headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml,*/*;q=0.8"},
+    ) as client:
         for _ in range(MAX_REDIRECTS + 1):
             validate_public_url(current)
             with client.stream("GET", current) as resp:
