@@ -16,20 +16,26 @@ load_dotenv(override=False)
 
 litellm.suppress_debug_info = True
 
+# Groq retired llama-3.3-70b-versatile and llama-3.1-8b-instant; both now return
+# "model does not exist". gpt-oss-120b is the large tier, gpt-oss-20b the cheap one.
+# Every tier is overridable by env so a provider retiring a model does not
+# require a code change.
 MODEL_MAP_OLLAMA = {
-    "simple": "ollama/llama3.1:8b",
-    "complex": "groq/llama-3.3-70b-versatile",
-    "long_doc": "gemini/gemini-2.0-flash-exp",
-    "offline": "ollama/llama3.1:8b",
-    "classify": "ollama/llama3.2:3b",
+    "simple": os.getenv("GROQ_MODEL_SIMPLE", "groq/openai/gpt-oss-20b"),
+    "complex": os.getenv("GROQ_MODEL_COMPLEX", "groq/openai/gpt-oss-120b"),
+    "long_doc": os.getenv("GROQ_MODEL_LONG_DOC", "groq/openai/gpt-oss-120b"),
+    "offline": os.getenv("GROQ_MODEL_OFFLINE", "groq/openai/gpt-oss-20b"),
+    "classify": os.getenv("GROQ_MODEL_CLASSIFY", "groq/openai/gpt-oss-20b"),
 }
 
+# The offline tier is documented as the no-egress path. If OLLAMA_API_BASE is set
+# it resolves there instead of a hosted provider, so the caller keeps local
+# inference local. Otherwise it falls back to the hosted default above.
+if os.getenv("OLLAMA_API_BASE"):
+    MODEL_MAP_OLLAMA["offline"] = os.getenv("OLLAMA_MODEL_OFFLINE", "ollama/llama3.1:8b")
+
 litellm.fallbacks = [
-    {"groq/llama-3.3-70b-versatile": [
-        "gemini/gemini-2.0-flash-exp",
-        "ollama/llama3.1:8b",
-    ]},
-    {"ollama/llama3.1:8b": ["groq/llama-3.1-8b-instant"]},
+    {MODEL_MAP_OLLAMA["complex"]: [MODEL_MAP_OLLAMA["simple"]]},
 ]
 
 
