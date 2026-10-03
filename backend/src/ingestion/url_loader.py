@@ -1,17 +1,72 @@
 """
 URL Loader — scrapes web pages and ingests into Hermes retriever.
 
-Uses trafilatura for clean article extraction (removes nav, ads, footers).
-Falls back to raw HTML parsing if trafilatura gets nothing.
+Fetches HTML with httpx and hands it to trafilatura for clean article
+extraction (removes nav, ads, footers).
+
+Redirects are followed manually and every hop is re-validated against
+``url_guard.validate_public_url``, because a public URL that 302s to
+http://127.0.0.1/ would otherwise walk straight past an entry-point check.
 """
 
+import httpx
 import trafilatura
+from urllib.parse import urljoin
+
+from src.ingestion.url_guard import validate_public_url
 from src.rag.retriever import HermesRetriever
+
+FETCH_TIMEOUT = 15.0
+MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+MAX_REDIRECTS = 3
+REDIRECT_STATUSES = (301, 302, 303, 307, 308)
+
+
+def _download_html(url: str) -> str | None:
+    """
+    Fetch ``url`` and return its HTML, or None if it cannot be retrieved.
+
+    Returns None when the response is a redirect without a Location header or
+    the body exceeds MAX_RESPONSE_BYTES.
+    """
+    # RESIDUAL RISK (DNS rebinding): validate_public_url resolves the hostname
+    # here, but httpx resolves it again independently when it opens the socket.
+    # An attacker controlling DNS with a very low TTL can answer with a public
+    # address for the check and a private one for the connect. Closing that
+    # fully requires resolving once and pinning the IP for the connection
+    # (e.g. a custom transport that dials the validated address with a
+    # matching Host header / SNI). This narrows the window; it does not close it.
+    current = url
+    with httpx.Client(follow_redirects=False, timeout=FETCH_TIMEOUT) as client:
+        for _ in range(MAX_REDIRECTS + 1):
+            validate_public_url(current)
+            with client.stream("GET", current) as resp:
+                if resp.status_code in REDIRECT_STATUSES:
+                    location = resp.headers.get("location")
+                    if not location:
+                        return None
+                    current = urljoin(current, location)
+                    continue
+
+                resp.raise_for_status()
+
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in resp.iter_bytes():
+                    total += len(chunk)
+                    if total > MAX_RESPONSE_BYTES:
+                        print(f"Response exceeded {MAX_RESPONSE_BYTES} bytes; discarding.")
+                        return None
+                    chunks.append(chunk)
+
+                return b"".join(chunks).decode(resp.encoding or "utf-8", errors="replace")
+
+    raise ValueError(f"Exceeded {MAX_REDIRECTS} redirects while fetching {url}.")
 
 
 def fetch_url(url: str) -> tuple[str | None, str | None]:
     """Download and extract main content + title from a URL."""
-    downloaded = trafilatura.fetch_url(url)
+    downloaded = _download_html(url)
     if not downloaded:
         return None, None
 

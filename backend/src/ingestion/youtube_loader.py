@@ -23,6 +23,28 @@ def extract_video_id(url_or_id: str) -> str:
     return url_or_id
 
 
+def validate_youtube_target(url_or_id: str) -> str:
+    """
+    Resolve ``url_or_id`` to a YouTube video ID, rejecting anything else.
+
+    ``extract_video_id`` falls back to returning its input unchanged, so without
+    this check arbitrary text is accepted and only fails later inside the
+    transcript client. The fetch host is always www.youtube.com, so this guards
+    input shape rather than acting as an SSRF check.
+
+    Raises:
+        ValueError: if no 11-character YouTube video ID can be resolved.
+    """
+    video_id = extract_video_id(url_or_id)
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{11}", video_id):
+        raise ValueError(
+            f"Could not resolve a YouTube video ID from {url_or_id[:80]!r}. "
+            "Expected a youtube.com/watch?v=..., youtu.be/... URL or a bare "
+            "11-character video ID."
+        )
+    return video_id
+
+
 def fetch_transcript(video_id: str) -> list[dict]:
     """
     Fetch transcript segments from YouTube.

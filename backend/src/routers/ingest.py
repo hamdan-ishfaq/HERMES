@@ -29,7 +29,8 @@ from src.auth import get_current_user
 from src.db import User
 from src.rag.factory import get_retriever
 from src.ingestion.url_loader import ingest_url
-from src.ingestion.youtube_loader import ingest_youtube
+from src.ingestion.url_guard import validate_public_url
+from src.ingestion.youtube_loader import ingest_youtube, validate_youtube_target
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
@@ -51,8 +52,14 @@ async def ingest_url_endpoint(
     """
     Scrape a web page and ingest into Qdrant.
 
-    Returns job metadata on success; HTTP 422 if trafilatura cannot extract text.
+    Returns HTTP 400 if the URL is not a public http/https target, HTTP 422 if
+    trafilatura cannot extract text.
     """
+    try:
+        validate_public_url(req.url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Blocked URL: {e}")
+
     job = IngestionJob(
         user_id=current_user.id,
         source_type="url",
@@ -100,6 +107,11 @@ async def ingest_youtube_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    try:
+        validate_youtube_target(req.url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Blocked URL: {e}")
+
     job = IngestionJob(
         user_id=current_user.id,
         source_type="youtube",
