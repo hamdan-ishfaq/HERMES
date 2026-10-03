@@ -6,42 +6,40 @@
  *     via React Context (consumed through `useAuth()`).
  *   - Persists the JWT in `localStorage` under `hermes_access_token` so page
  *     refreshes keep the user logged in.
- *   - Gates rendering until the initial token check completes (`loading` flag).
+ *
+ * The context object and `useAuth` live in ./authContext so that this module
+ * exports only a component and stays fast-refresh friendly.
  *
  * API endpoints:
  *   - POST /auth/login   — exchange email + password for access_token
  *   - POST /auth/register — create account and receive access_token
  */
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { useState } from "react";
 import client from "../api/client";
+import { AuthContext } from "./authContext";
 
-const AuthContext = createContext();
-
-/**
- * Hook to read auth state and actions from the nearest AuthProvider.
- * Must be called inside a component tree wrapped by `<AuthProvider>`.
- *
- * @returns {{ isAuthenticated: boolean, login: Function, register: Function, logout: Function }}
- */
-export const useAuth = () => useContext(AuthContext);
+const TOKEN_KEY = "hermes_access_token";
 
 /**
  * Wraps the app and owns JWT lifecycle (read on mount, write on login/register, clear on logout).
  *
+ * `isAuthenticated` is derived from `token` rather than stored alongside it:
+ * the two could only ever disagree, and keeping them in step needed an effect
+ * that re-rendered the subtree on every token change.
+ *
  * @param {{ children: React.ReactNode }} props
  */
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(localStorage.getItem("hermes_access_token"));
-  const [isAuthenticated, setIsAuthenticated] = useState(!!token);
-  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
+  const isAuthenticated = !!token;
 
-  /** Re-sync auth flag whenever the in-memory token changes. */
-  useEffect(() => {
-    // Optionally we could fetch user profile here if the backend had an endpoint
-    setIsAuthenticated(!!token);
-    setLoading(false);
-  }, [token]);
+  /** Single write path, keeping localStorage and in-memory state in step. */
+  const persist = (next) => {
+    if (next) localStorage.setItem(TOKEN_KEY, next);
+    else localStorage.removeItem(TOKEN_KEY);
+    setToken(next);
+  };
 
   /**
    * Authenticate an existing user and store the returned JWT.
@@ -50,10 +48,7 @@ export const AuthProvider = ({ children }) => {
    */
   const login = async (email, password) => {
     const res = await client.post("/auth/login", { email, password });
-    const accessToken = res.data.access_token;
-    localStorage.setItem("hermes_access_token", accessToken);
-    setToken(accessToken);
-    setIsAuthenticated(true);
+    persist(res.data.access_token);
   };
 
   /**
@@ -63,20 +58,11 @@ export const AuthProvider = ({ children }) => {
    */
   const register = async (email, password) => {
     const res = await client.post("/auth/register", { email, password });
-    const accessToken = res.data.access_token;
-    localStorage.setItem("hermes_access_token", accessToken);
-    setToken(accessToken);
-    setIsAuthenticated(true);
+    persist(res.data.access_token);
   };
 
   /** Clear stored credentials and mark the session as unauthenticated. */
-  const logout = () => {
-    localStorage.removeItem("hermes_access_token");
-    setToken(null);
-    setIsAuthenticated(false);
-  };
-
-  if (loading) return null;
+  const logout = () => persist(null);
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, login, register, logout }}>

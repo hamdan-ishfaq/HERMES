@@ -12,7 +12,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { Search, Database, BarChart3, LogOut, Hexagon } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 import clsx from "clsx";
 
 /** Static nav definition — path, label, and Lucide icon for each main view. */

@@ -91,7 +91,7 @@ export default function AnalyticsView() {
       try {
         const res = await client.get("/eval/dashboard");
         setData(res.data);
-      } catch (err) {
+      } catch {
         setError("Failed to fetch analytics data.");
       } finally {
         setLoading(false);
