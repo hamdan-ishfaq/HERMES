@@ -1,5 +1,5 @@
 """
-Dense embedding providers — Ollama nomic-embed-text (default) or local BGE-m3.
+Dense embedding providers — local BGE-m3 (default) or Ollama nomic-embed-text.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ DIMENSIONS = {
 
 
 def embed_model_name() -> str:
-    return os.getenv("EMBED_MODEL", "ollama").strip().lower()
+    return os.getenv("EMBED_MODEL", "bge-m3").strip().lower()
 
 
 def vector_dimension() -> int:

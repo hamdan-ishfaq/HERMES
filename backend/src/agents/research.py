@@ -30,7 +30,7 @@ from src.tools.graph_search import graph_search
 from src.rag.graph_index import graph_enabled
 
 # Minimum cross-encoder relevance score for a context to be kept.
-# ms-marco-MiniLM scores are logits; ~0.0 is borderline, higher is better.
+# ms-marco-MiniLM and bge-reranker-v2-m3 score logits; ~0.0 is borderline.
 
 NO_CONTEXT_MSG = "No relevant information found in the knowledge base."
 
@@ -44,7 +44,7 @@ def _grade_score_threshold() -> float:
 
 
 def _crag_lite_enabled() -> bool:
-    return os.getenv("HERMES_CRAG_LITE", "1") != "0"
+    return os.getenv("HERMES_CRAG_LITE", "0") != "0"
 
 
 _SOFT_EMPTY_FLOOR = -2.0

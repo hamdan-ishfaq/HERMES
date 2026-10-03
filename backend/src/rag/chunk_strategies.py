@@ -34,7 +34,7 @@ STRATEGY_CONFIGS: dict[str, ChunkConfig] = {
 
 
 def get_chunk_config() -> ChunkConfig:
-    strategy = os.getenv("CHUNK_STRATEGY", "fixed").strip().lower()
+    strategy = os.getenv("CHUNK_STRATEGY", "fixed_large").strip().lower()
     if strategy in STRATEGY_CONFIGS:
         return STRATEGY_CONFIGS[strategy]
     return ChunkConfig(
@@ -46,7 +46,7 @@ def get_chunk_config() -> ChunkConfig:
 
 
 def build_chunker() -> HierarchicalChunker | "SemanticChunker":
-    strategy = os.getenv("CHUNK_STRATEGY", "fixed").strip().lower()
+    strategy = os.getenv("CHUNK_STRATEGY", "fixed_large").strip().lower()
     cfg = get_chunk_config()
     if strategy == "semantic":
         return SemanticChunker(cfg)

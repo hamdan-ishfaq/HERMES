@@ -13,7 +13,7 @@ _model_name = None
 
 
 def _resolve_model() -> str:
-    return os.getenv("RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+    return os.getenv("RERANK_MODEL", "BAAI/bge-reranker-v2-m3")
 
 
 def get_reranker() -> CrossEncoder:
