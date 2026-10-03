@@ -20,6 +20,7 @@ Needs: docker (daemon running), httpx, and an LLM configured in backend/.env
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import secrets
@@ -237,7 +238,44 @@ class User:
         self.api, self.label = api, label
         self.email = f"{label}-{uuid.uuid4().hex[:8]}@e2e.example.com"
         self.token = ""
+        # calls: every request the harness attempted.
+        # ok_calls: those the server accepted (200). Only these become QueryLog
+        # rows, so dashboard assertions must compare against ok_calls -- a
+        # request the server rejected is correctly not logged.
         self.calls = 0
+        self.ok_calls = 0
+
+    # The hosted free tier this run uses is rate limited (Groq: 30 req/min) and
+    # one research request fans out to several provider calls. Retry like a
+    # well-behaved client rather than recording a failure the app handled
+    # correctly.
+    def _post_with_retry(self, path, body):
+        attempts = int(os.getenv("E2E_LLM_ATTEMPTS", "6"))
+        r = None
+        for i in range(attempts):
+            r = self.api.c.post(path, headers=self.h, json=body)
+            if r.status_code != 429 or i == attempts - 1:
+                return r
+            time.sleep(min(float(r.headers.get("Retry-After", 2 ** i)), 30))
+        return r
+
+    @contextlib.contextmanager
+    def _stream_with_retry(self, path, body):
+        attempts = int(os.getenv("E2E_LLM_ATTEMPTS", "6"))
+        cm = None
+        for i in range(attempts):
+            cm = self.api.c.stream("POST", path, headers=self.h, json=body)
+            r = cm.__enter__()
+            if r.status_code != 429 or i == attempts - 1:
+                try:
+                    yield r
+                finally:
+                    cm.__exit__(None, None, None)
+                return
+            cm.__exit__(None, None, None)
+            time.sleep(min(float(r.headers.get("Retry-After", 2 ** i)), 30))
+        with cm as r:
+            yield r
 
     def register(self):
         p = self.api.find("/auth/register")
@@ -275,9 +313,11 @@ class User:
         _, props = self.api.body_props(p)
         field = pick(props, ["query", "question", "q", "message"], "query")
         t0 = time.time()
-        r = self.api.c.post(p, headers=self.h, json={field: q})
+        r = self._post_with_retry(p, {field: q})
         dt = time.time() - t0
         self.calls += 1
+        if r.status_code == 200:
+            self.ok_calls += 1
         j = r.json() if r.status_code == 200 else {}
         ans = (j.get("answer") or j.get("final_answer") or "") if isinstance(j, dict) else ""
         return r, j, ans, dt
@@ -288,7 +328,7 @@ class User:
         field = pick(props, ["query", "question", "q", "message"], "query")
         text, n_events, first = "", 0, None
         t0 = time.time()
-        with self.api.c.stream("POST", p, headers=self.h, json={field: q}) as r:
+        with self._stream_with_retry(p, {field: q}) as r:
             if r.status_code != 200:
                 return r.status_code, "", 0, None
             for line in r.iter_lines():
@@ -310,6 +350,8 @@ class User:
                 except Exception:
                     text += data
         self.calls += 1
+        if r.status_code == 200:
+            self.ok_calls += 1
         return 200, text, n_events, first
 
 
@@ -444,16 +486,24 @@ def test_ingest_and_quality(api: Api, a: User, b: User, args):
         f"first event after {first:.2f}s" if first is not None else "")
 
     cat = "isolation"
+    # A "must not contain" assertion is satisfied by an empty answer, so every
+    # one of these also requires the request itself to have succeeded --
+    # otherwise a 500 or a rate-limit error silently counts as a pass.
     r, j, ans, _ = b.ask(ANSWERABLE[0][0])
+    ok = r.status_code == 200
     leaked = has_any(ans, ["1987", "zorblax", "quillfen"]) and "no relevant" not in ans.lower()
     cache_leak = bool(j.get("cache_hit")) if isinstance(j, dict) else False
-    rec(cat, "user B cannot retrieve user A's document", not leaked, ans[:100])
-    rec(cat, "user B does not receive user A's cached answer", not cache_leak)
+    rec(cat, "user B cannot retrieve user A's document", ok and not leaked,
+        f"HTTP {r.status_code}; {ans[:80]}")
+    rec(cat, "user B does not receive user A's cached answer", ok and not cache_leak,
+        f"HTTP {r.status_code}, cache_hit={cache_leak}")
     r, j, ans, _ = a.ask("What is the Heliotrope budget?")
     rec(cat, "user A cannot retrieve user B's document",
-        not has_any(ans, ["8.2 million", "yarrow", "szabo"]), ans[:100])
+        r.status_code == 200 and not has_any(ans, ["8.2 million", "yarrow", "szabo"]),
+        f"HTTP {r.status_code}; {ans[:80]}")
     code, text, _, _ = b.stream("In what year was the Zorblax-7 reactor commissioned?")
-    rec(cat, "stream endpoint also isolated", not has_any(text, ["1987"]), f"HTTP {code}")
+    rec(cat, "stream endpoint also isolated",
+        code == 200 and not has_any(text, ["1987"]), f"HTTP {code}; {text[:60]}")
 
 
 def test_eval_endpoints(api: Api, a: User, b: User):
@@ -462,13 +512,22 @@ def test_eval_endpoints(api: Api, a: User, b: User):
     r = api.c.post(p, headers=a.h)
     rec(cat, "ordinary user cannot start an eval run", r.status_code in (401, 403), f"HTTP {r.status_code}")
     p = api.find("/eval/dashboard")
-    r = api.c.get(p, headers=b.h)
-    if r.status_code == 200:
-        total = r.json().get("total_queries")
-        rec(cat, "dashboard counts only the caller's queries",
-            isinstance(total, int) and total <= b.calls, f"total_queries={total}, B made {b.calls} calls")
+    ra = api.c.get(p, headers=a.h)
+    rb = api.c.get(p, headers=b.h)
+    if ra.status_code == 200 and rb.status_code == 200:
+        ta = ra.json().get("total_queries")
+        tb = rb.json().get("total_queries")
+        # Exact equality is the point: "total <= calls" also passes when the
+        # counter is dead and returns 0. Requiring the two users' counts to
+        # differ means an unscoped query that summed every user's rows would
+        # fail rather than accidentally match.
+        rec(cat, "dashboard counts each caller's queries and excludes the other",
+            isinstance(ta, int) and isinstance(tb, int)
+            and ta == a.ok_calls and tb == b.ok_calls
+            and a.ok_calls != b.ok_calls,
+            f"A: total={ta} vs {a.ok_calls} ok | B: total={tb} vs {b.ok_calls} ok")
     else:
-        rec(cat, "dashboard reachable", False, f"HTTP {r.status_code}")
+        rec(cat, "dashboard reachable", False, f"A: HTTP {ra.status_code}, B: HTTP {rb.status_code}")
 
 
 def test_mcp(env: dict):
