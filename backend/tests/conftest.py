@@ -19,6 +19,8 @@ How fixtures work:
       RAG dependencies so unit tests stay fast and deterministic.
 """
 
+import os
+
 import pytest
 import pytest_asyncio
 from unittest.mock import MagicMock, patch
@@ -26,7 +28,32 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy import text
 
 from src.main import app
-from src.db import engine, Base
+from src.db import DATABASE_URL, engine, Base
+
+# Database names the suite is allowed to run against. The tests TRUNCATE tables
+# between cases and drop nothing, so pointing them at a real database destroys
+# that data. Only throwaway names belong here.
+_ALLOWED_TEST_DATABASES = {"hermes_test", "hermes_e2e", "hermes_ci", "test", "postgres"}
+
+
+def _assert_safe_database_url() -> None:
+    """Abort the session if DATABASE_URL does not point at a throwaway database."""
+    name = DATABASE_URL.rsplit("/", 1)[-1].split("?", 1)[0]
+    if name == "hermes_db":
+        raise RuntimeError(
+            "Refusing to run tests against 'hermes_db' — it is the real "
+            "application database and this suite truncates tables between "
+            "tests. Set DATABASE_URL to a throwaway database (e.g. hermes_test)."
+        )
+    if name not in _ALLOWED_TEST_DATABASES:
+        raise RuntimeError(
+            f"Refusing to run tests against database {name!r}. "
+            f"Allowed: {sorted(_ALLOWED_TEST_DATABASES)}. Set DATABASE_URL "
+            "explicitly to a throwaway database."
+        )
+
+
+_assert_safe_database_url()
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)

@@ -76,6 +76,20 @@ def test_parent_expansion_returns_more_than_child():
     assert len(top["context"]) > len(top["child_text"])
 
 
+def _clear_hermes_keys(r) -> int:
+    """
+    Delete only this app's Redis keys instead of flushdb().
+
+    flushdb() wipes every key in the database, including anything another
+    process or a developer's local session is using. Scan-and-delete keeps the
+    blast radius to hermes:* which is all this suite writes.
+    """
+    deleted = 0
+    for key in r.scan_iter(match="hermes:*", count=500):
+        deleted += r.delete(key)
+    return deleted
+
+
 @requires_stack
 def test_semantic_cache_round_trip():
     """Store an answer in SemanticCache and verify a paraphrased query hits the cache."""
@@ -83,7 +97,7 @@ def test_semantic_cache_round_trip():
     from src.rag.cache import SemanticCache
 
     r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
-    r.flushdb()
+    _clear_hermes_keys(r)
 
     cache = SemanticCache()
     payload = {
