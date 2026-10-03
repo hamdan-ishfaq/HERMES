@@ -99,7 +99,7 @@ Both tools run under the ACL of `HERMES_MCP_USER_ID`, which is required — stdi
 
 ## Evaluation (RAGAS)
 
-The latest run is recorded in `backend/eval_report.json` (experiment `clean_slate_winning`, 2026-07-14). It scored **20 questions** with the judge `openrouter/google/gemini-2.5-flash-lite`:
+The latest run is recorded in `backend/eval_report.json` (experiment `clean_slate_winning`, 2026-07-14). It scored **20 questions**; the judge is recorded as `levers.judge` = `openrouter/google/gemini-2.5-flash-lite`:
 
 | Metric | Score |
 |---|---|
@@ -108,7 +108,19 @@ The latest run is recorded in `backend/eval_report.json` (experiment `clean_slat
 | Context precision | 0.8327 |
 | Context recall | 1.0 |
 
-Configuration for that run (from the same file): `EMBED_MODEL=bge-m3`, `RERANK_MODEL=BAAI/bge-reranker-v2-m3`, `CHUNK_STRATEGY=fixed_large`, `MIN_RERANK_SCORE=0.0`, `RETRIEVAL_CANDIDATES=50`, `CONTEXT_PACK_TOP_K=5`, `HERMES_MULTI_QUERY=1`, `HERMES_CRAG_LITE=0`.
+Levers recorded for that run, in full, from `levers` in the same file:
+
+| Lever | Value | | Lever | Value |
+|---|---|---|---|---|
+| `MIN_RERANK_SCORE` | 0.0 | | `CHILD_CHUNK_SIZE` | 150 |
+| `RETRIEVAL_CANDIDATES` | 50 | | `CHILD_CHUNK_OVERLAP` | 50 |
+| `HERMES_MULTI_QUERY` | 1 | | `EMBED_MODEL` | bge-m3 |
+| `HERMES_CRAG_LITE` | 0 | | `RERANK_MODEL` | BAAI/bge-reranker-v2-m3 |
+| `HERMES_GRAPH_RAG` | 0 | | `RAGAS_MAX_WORKERS` | 4 |
+| `CONTEXT_PACK_TOP_K` | 5 | | `RAGAS_BUILD_WORKERS` | 1 |
+| `HERMES_SIMPLE_MODEL` | complex | | `LLM_PROVIDER` | openrouter |
+| `CHUNK_STRATEGY` | fixed_large | | `OLLAMA_API_BASE` | http://localhost:11434 |
+
 
 **What this number is, stated plainly:**
 

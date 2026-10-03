@@ -30,14 +30,19 @@ def _require_eval_admin(user: User) -> None:
 @router.post("/run")
 async def run_eval(
     background: BackgroundTasks,
-    n_questions: int = 10,
+    n_questions: int = 20,
     current_user: User = Depends(get_current_user),
 ):
     """
     Trigger a RAGAS evaluation run in the background.
 
+    ``n_questions`` defaults to the full golden set, matching the CLI's --n and
+    the committed eval_report.json. It previously defaulted to 10 here while the
+    CLI defaulted to 20, so an API-triggered run silently scored half the set
+    and then overwrote eval_report.json with half-coverage numbers.
+
     The run ingests the golden knowledge base through the shared retriever and
-    scores faithfulness/relevancy/precision/recall via local Ollama. It writes
+    scores faithfulness/relevancy/precision/recall via the configured judge. It writes
     eval_report.json, which GET /api/eval/dashboard then surfaces. This is a
     long-running job (minutes); the endpoint returns immediately.
 

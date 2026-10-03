@@ -80,3 +80,28 @@ async def test_dashboard_counts_only_current_user_queries(client, auth_token):
     body = resp.json()
     assert body["total_queries"] == 2
     assert body["cache_hit_rate"] == 0.5
+
+
+def test_api_eval_default_matches_cli_and_committed_report():
+    """
+    An API-triggered run must score the full golden set.
+
+    The route defaulted to 10 while the CLI and the committed
+    eval_report.json use 20, so hitting POST /api/eval/run silently scored half
+    the questions and then overwrote the report with half-coverage numbers.
+    """
+    import inspect
+
+    from src.routers.eval import run_eval
+    from src.evaluation.ragas_eval import run_evaluation
+
+    api_default = inspect.signature(run_eval).parameters["n_questions"].default
+    cli_default = inspect.signature(run_evaluation).parameters["n_questions"].default
+    assert api_default == cli_default, f"API {api_default} != CLI {cli_default}"
+
+    import json
+    import pathlib
+    report = json.loads(
+        (pathlib.Path(__file__).resolve().parents[1] / "eval_report.json").read_text()
+    )
+    assert report["questions_tested"] == api_default
