@@ -63,3 +63,20 @@ async def test_protected_route_without_token(client):
     """POST /api/research without a Bearer token must be rejected with 401."""
     resp = await client.post("/api/research", json={"query": "test"})
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_short_password(client):
+    """Password policy: a 1-character password must be rejected with 422."""
+    resp = await client.post("/api/auth/register", json={
+        "email": "short-pw@hermes.dev", "password": "a"
+    })
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_register_accepts_long_enough_password(client):
+    resp = await client.post("/api/auth/register", json={
+        "email": "long-enough-pw@hermes.dev", "password": "cipass123"
+    })
+    assert resp.status_code == 201

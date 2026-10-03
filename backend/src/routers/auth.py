@@ -19,7 +19,7 @@ What this calls:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -28,10 +28,12 @@ from src.auth import hash_password, verify_password, create_access_token
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+MIN_PASSWORD_LENGTH = 8
+
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
 
 
 class LoginRequest(BaseModel):
