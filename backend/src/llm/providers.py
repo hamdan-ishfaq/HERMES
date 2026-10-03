@@ -9,10 +9,6 @@ from __future__ import annotations
 import os
 
 import litellm
-from dotenv import load_dotenv
-
-# Shell env wins over .env so RAGAS experiment levers are not clobbered.
-load_dotenv(override=False)
 
 litellm.suppress_debug_info = True
 
@@ -65,7 +61,19 @@ def model_map() -> dict[str, str]:
 
 
 def _completion_kwargs(model: str, *, stream: bool = False) -> dict:
-    kwargs: dict = {"model": model, "stream": stream}
+    kwargs: dict = {
+        "model": model,
+        "stream": stream,
+        # Hosted free tiers rate-limit aggressively (Groq's is 30 req/min), and
+        # without this a 429 surfaced to the caller as an opaque HTTP 500.
+        # LiteLLM retries 429/5xx with exponential backoff.
+        #
+        # Only pass parameters LiteLLM consumes itself. Anything else is
+        # forwarded into the provider's request body and rejected as an
+        # unsupported property -- `retry_interval`, for example, made every
+        # Groq call fail with a 400. test_llm_providers.py pins this key set.
+        "num_retries": int(os.getenv("LLM_MAX_RETRIES", "3")),
+    }
     if model.startswith("ollama"):
         kwargs["api_base"] = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
     return kwargs

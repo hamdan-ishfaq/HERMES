@@ -168,9 +168,6 @@ def ingest_youtube(
 
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
-
     retriever = HermesRetriever(use_cache=False, use_reranker=True)
 
     # 3Blue1Brown — "But what is a neural network?" (has transcript, ~19 min)

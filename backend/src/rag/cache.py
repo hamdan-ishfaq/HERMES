@@ -14,11 +14,8 @@ import os
 import json
 import hashlib
 import logging
-from dotenv import load_dotenv
 
 from src.rag.embeddings import dense_embed
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 

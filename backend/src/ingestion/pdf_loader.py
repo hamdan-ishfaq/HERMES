@@ -7,11 +7,8 @@ Falls back to unstructured for scanned/complex layouts.
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 import pypdf
 from src.rag.retriever import HermesRetriever
-
-load_dotenv()
 
 
 def extract_text_pypdf(pdf_path: str) -> list[dict]:

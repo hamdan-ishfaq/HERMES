@@ -23,8 +23,6 @@ What this calls:
 """
 
 import asyncio, os, httpx
-from dotenv import load_dotenv
-load_dotenv()
 
 
 async def check_all():

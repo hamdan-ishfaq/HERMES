@@ -5,7 +5,6 @@ Retriever v2 — hybrid dense+sparse search, parent expansion, reranking, graph 
 import os
 import uuid
 
-from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -26,7 +25,6 @@ from src.rag.chunker import ParentChunk
 from src.rag.embeddings import dense_embed, sparse_embed, vector_dimension
 from src.rag.graph_index import index_parent_chunk
 
-load_dotenv()
 
 COLLECTION_NAME = "hermes_docs"
 

@@ -130,9 +130,6 @@ def ingest_url(url: str, retriever: HermesRetriever, extra_metadata: dict | None
 
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
-
     retriever = HermesRetriever(use_cache=False, use_reranker=True)
 
     test_url = "https://en.wikipedia.org/wiki/Retrieval-augmented_generation"

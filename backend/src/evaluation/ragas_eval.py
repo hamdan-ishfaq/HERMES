@@ -16,10 +16,8 @@ import warnings
 from datetime import datetime
 
 import redis
-from dotenv import load_dotenv
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-load_dotenv(override=False)
 
 from datasets import Dataset
 from langchain_ollama import ChatOllama, OllamaEmbeddings
@@ -113,7 +111,6 @@ def _build_dataset(n_questions: int) -> Dataset:
 
 def _build_ragas_llm():
     """RAGAS judge — OpenRouter when configured, else local Ollama."""
-    load_dotenv(override=False)
     judge = os.getenv(
         "HERMES_RAGAS_JUDGE",
         "openrouter/google/gemini-2.5-flash-lite"

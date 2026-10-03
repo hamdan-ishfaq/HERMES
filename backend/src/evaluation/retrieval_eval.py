@@ -18,9 +18,6 @@ import os
 import time
 from datetime import datetime
 
-from dotenv import load_dotenv
-
-load_dotenv(override=False)
 
 from src.agents.research import _retrieve_contexts
 from src.evaluation.golden_dataset import load_golden
