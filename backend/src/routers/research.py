@@ -14,7 +14,7 @@ import os
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +28,36 @@ from src.db import AsyncSessionLocal, ConversationTurn, QueryLog, User, get_db
 router = APIRouter(prefix="/api", tags=["research"])
 
 MEMORY_TURNS = int(os.getenv("HERMES_MEMORY_TURNS", "4"))
+
+def _llm_http_error(exc: Exception) -> HTTPException:
+    """
+    Translate a provider failure into an honest HTTP status.
+
+    A hosted LLM that rate-limits (429) or goes down (5xx) is not an internal
+    server fault: without this the FastAPI error handler reported every one of
+    them as 500, which told the caller nothing and hid the cause in the logs.
+    """
+    text = f"{type(exc).__name__}: {exc}"
+    lowered = text.lower()
+    if "rate limit" in lowered or "429" in lowered:
+        return HTTPException(
+            status_code=429,
+            detail="The language model provider is rate limiting this account. Retry shortly.",
+            headers={"Retry-After": "5"},
+        )
+    if any(code in lowered for code in ("401", "403", "invalid api key", "unauthorized")):
+        return HTTPException(status_code=502, detail="The language model provider rejected our credentials.")
+    if any(code in lowered for code in ("timeout", "timed out", "connect", "502", "503", "504", "service unavailable")):
+        return HTTPException(
+            status_code=503,
+            detail="The language model provider is unavailable.",
+            headers={"Retry-After": "5"},
+        )
+    if any(code in lowered for code in ("500", "internal server")):
+        return HTTPException(status_code=502, detail="The language model provider returned an error.")
+    return HTTPException(status_code=502, detail="The language model provider could not be reached.")
+
+
 
 
 class ResearchRequest(BaseModel):
@@ -101,12 +131,17 @@ async def research(
     session_id = req.session_id or str(uuid.uuid4())
     messages = await _load_messages(db, current_user.id, session_id)
 
-    state = run_research(
-        req.query,
-        session_id=session_id,
-        messages=messages,
-        user_id=str(current_user.id),
-    )
+    try:
+        state = run_research(
+            req.query,
+            session_id=session_id,
+            messages=messages,
+            user_id=str(current_user.id),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # provider/network failure
+        raise _llm_http_error(exc) from exc
 
     answer = state.get("final_answer") or state.get("draft_answer") or ""
     citations = state.get("citations", [])
@@ -152,12 +187,27 @@ async def research_stream(
 
     async def event_generator():
         final = None
-        for event, data in iter_research_events(
+        # The upstream generator raises lazily, so it is advanced one event at a
+        # time rather than materialised into a list, which would defeat SSE by
+        # buffering the whole answer before the first token is sent. Once the
+        # response has started the status line is already committed, so a
+        # mid-stream failure is reported as an "error" event instead.
+        events = iter_research_events(
             req.query,
             messages=messages,
             user_id=user_id_str,
             session_id=session_id,
-        ):
+        )
+        while True:
+            try:
+                event, data = next(events)
+            except StopIteration:
+                break
+            except Exception as exc:  # provider/network failure
+                err = _llm_http_error(exc)
+                yield {"event": "error", "data": json.dumps(
+                    {"detail": err.detail, "status_code": err.status_code})}
+                return
             if event == "done":
                 final = data
                 data = {**data, "session_id": session_id}

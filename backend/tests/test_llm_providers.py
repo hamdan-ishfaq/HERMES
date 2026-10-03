@@ -103,3 +103,39 @@ def test_completion_kwargs_adds_ollama_api_base(fresh):
     kw = p._completion_kwargs("ollama/llama3.1:8b")
     assert kw["api_base"] == "http://localhost:11434"
     assert p._completion_kwargs("groq/openai/gpt-oss-20b").get("api_base") is None
+
+def test_completion_kwargs_enables_retry():
+    """A rate-limited provider must be retried, not surfaced as a 500."""
+    kw = providers._completion_kwargs("groq/openai/gpt-oss-20b")
+    assert kw["num_retries"] >= 1
+
+
+def test_completion_kwargs_only_pass_params_litellm_consumes():
+    """
+    LiteLLM forwards unrecognised kwargs into the provider's request body, and
+    the provider rejects them: passing `retry_interval` made every Groq call
+    fail with "property 'retry_interval' is unsupported". Any new key has to
+    be allowlisted here on purpose.
+    """
+    allowed = {"model", "stream", "num_retries", "api_base"}
+    for model in ("groq/openai/gpt-oss-20b", "ollama/llama3.1:8b"):
+        extra = set(providers._completion_kwargs(model)) - allowed
+        assert not extra, f"{model}: unexpected completion kwargs {sorted(extra)}"
+
+
+@pytest.mark.parametrize("exc_text,expected", [
+    ("Rate limit reached for model `openai/gpt-oss-20b`: Limit 30", 429),
+    ("Client error '429 Too Many Requests'", 429),
+    ("Error code: 401 - invalid api key", 502),
+    ("Read timed out. (connect timeout)", 503),
+    ("503 Service Unavailable", 503),
+])
+def test_llm_error_maps_to_honest_status(exc_text, expected):
+    from src.routers.research import _llm_http_error
+    assert _llm_http_error(RuntimeError(exc_text)).status_code == expected
+
+
+def test_rate_limit_error_carries_retry_after():
+    from src.routers.research import _llm_http_error
+    e = _llm_http_error(RuntimeError("429 Too Many Requests"))
+    assert e.headers and e.headers.get("Retry-After")
