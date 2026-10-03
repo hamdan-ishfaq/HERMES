@@ -13,15 +13,6 @@
 ## Portfolio positioning
 
 HERMES is the **Applied AI / agentic RAG** portfolio star (foundation-model stack, hybrid retrieval, LangGraph agents, semantic cache, honest RAGAS).
-
-**Suggested CV order**
-
-- Applied AI / Optimization (BMW-adjacent): HaulRank → **HERMES** → JurisGuard (1–2 bullets) → TALASH
-- Agentic systems: NEXUS → **HERMES** (expanded) → JurisGuard (short) → HaulRank
-
-**Not claimed here:** SSO/SCIM/WORM legal platforms, multi-tenant production SaaS, or user-profile personalization (see NEXUS). JurisGuard remains a supporting on-prem / air-gap story elsewhere — not this repo’s lead claim.
-
-
 ---
 
 ## What it does
@@ -52,10 +43,10 @@ flowchart TD
     Supervisor --> Research[research_agent]
 
     subgraph Retrieval
-        Research --> Embed[nomic-embed-text dense<br>+ BM25 sparse]
+        Research --> Embed[BGE-m3 dense<br>+ BM25 sparse]
         Embed --> Qdrant[(Qdrant)]
         Qdrant -->|dense + sparse prefetch| RRF[RRF fusion]
-        RRF --> Rerank[Cross-encoder rerank<br>ms-marco-MiniLM-L-6-v2]
+        RRF --> Rerank[Cross-encoder rerank<br>BAAI/bge-reranker-v2-m3]
         Rerank --> Parent[Parent-context expansion]
     end
 
@@ -72,13 +63,13 @@ The LangGraph pipeline is: `START → cache_check → [END on hit | supervisor �
 ## Core components
 
 ### Hybrid retrieval (`backend/src/rag/retriever.py`)
-- **Dense** embeddings via `nomic-embed-text` (Ollama) capture semantic meaning.
+- **Dense** embeddings via `BAAI/bge-m3` (local SentenceTransformer, 1024-dim) capture semantic meaning.
 - **Sparse** BM25 vectors via `fastembed` capture exact lexical / keyword matches.
 - Qdrant runs both as prefetches and fuses them with **Reciprocal Rank Fusion (RRF)**.
 - **Parent-child chunking** (`chunker.py`): small child chunks are indexed for precise retrieval, but the larger parent chunk is returned to the LLM for context. Parent text is persisted in the Qdrant payload so expansion works across processes and restarts.
 
 ### Cross-encoder reranking (`backend/src/rag/reranker.py`)
-Vector similarity scores candidates independently. The `ms-marco-MiniLM-L-6-v2` cross-encoder rescores the query against each candidate jointly, and contexts below `MIN_RERANK_SCORE` (default `0.35`) are dropped before the prompt is built.
+Vector similarity scores candidates independently. The `BAAI/bge-reranker-v2-m3` cross-encoder rescores the query against each candidate jointly, and contexts below `MIN_RERANK_SCORE` (default `0.0`) are dropped before the prompt is built.
 
 ### Semantic cache (`backend/src/rag/cache.py`)
 A Redis-backed cache embeds each query and compares against stored queries by cosine similarity (threshold `0.95`). On a hit, `cache_check` (the first graph node) returns the stored answer and **bypasses retrieval and generation** — an honest latency optimization, not a bypass of "the entire pipeline" before classification.
@@ -100,34 +91,43 @@ A Redis-backed cache embeds each query and compares against stored queries by co
 
 ### MCP (`backend/src/mcp/server.py`)
 ```bash
-cd backend && uv run python -m src.mcp.server
+cd backend && HERMES_MCP_USER_ID=<user id> uv run python -m src.mcp.server
 # Connect MCP Inspector via stdio — tools: hermes_search, hermes_research
 ```
-`hermes_research` is a local/dev tool (no JWT); do not expose unauthenticated in production.
+Both tools run under the ACL of `HERMES_MCP_USER_ID`, which is required — stdio MCP carries no request-level identity, so if it is unset both tools return an error rather than running unscoped. `hermes_research` has no JWT; do not expose it unauthenticated in production.
 ---
 
 ## Evaluation (RAGAS)
 
-Quality is measured with RAGAS using a local Ollama judge (`llama3.1:8b`) over a golden Q&A set. Latest run (`backend/eval_report.json`, 10 questions):
+The latest run is recorded in `backend/eval_report.json` (experiment `clean_slate_winning`, 2026-07-14). It scored **20 questions** with the judge `openrouter/google/gemini-2.5-flash-lite`:
 
 | Metric | Score |
 |---|---|
-| Faithfulness | 0.75 |
-| Answer relevancy | 0.72 |
-| Context precision | 0.72 |
-| Context recall | 0.81 |
+| Faithfulness | 1.0 |
+| Answer relevancy | 0.8711 |
+| Context precision | 0.8327 |
+| Context recall | 1.0 |
+
+Configuration for that run (from the same file): `EMBED_MODEL=bge-m3`, `RERANK_MODEL=BAAI/bge-reranker-v2-m3`, `CHUNK_STRATEGY=fixed_large`, `MIN_RERANK_SCORE=0.0`, `RETRIEVAL_CANDIDATES=50`, `CONTEXT_PACK_TOP_K=5`, `HERMES_MULTI_QUERY=1`, `HERMES_CRAG_LITE=0`.
+
+**What this number is, stated plainly:**
+
+- It is a **20-question smoke test**, not a benchmark. Twenty questions is far too small a sample to estimate a quality metric.
+- **13 of the 20 questions are answerable from `backend/eval/kb/hermes_architecture.md`** — a file authored for this repository, describing HERMES' own behaviour. Only the remaining 7 test anything beyond "can the system read back a document about itself".
+- **The results are not independent.** The questions, the corpus and the system under test were all written by the same author, and the tuned defaults above were selected by running this same evaluation. There is no held-out set and no external judge of the questions themselves, so the scores measure self-consistency, not general retrieval quality. Treat 1.0 faithfulness as "no answer contradicted its own context", not as a quality claim.
 
 Run an evaluation:
 
 ```bash
-# via API (background job, JWT required)
+# via API (background job, JWT required, and EVAL_ADMIN_EMAILS must list you —
+# an empty allow-list denies everyone)
 curl -X POST localhost:8000/api/eval/run -H "Authorization: Bearer <token>"
 
 # or directly
 cd backend && uv run python -m src.evaluation.ragas_eval
 ```
 
-RAGAS is not part of CI (it depends on a running Ollama judge and takes several minutes). CI runs the mocked unit tests; an integration test exercises the real retriever locally.
+RAGAS is not part of CI (it needs a judge model and takes several minutes). CI runs the mocked unit tests; an integration test exercises the real retriever locally.
 
 ---
 
@@ -141,7 +141,7 @@ docker compose up -d postgres redis qdrant
 # docker compose --profile local up -d
 ```
 
-You also need an Ollama server reachable at `OLLAMA_API_BASE` serving `nomic-embed-text` (embeddings) and `llama3.1:8b` / `llama3.2:3b` (generation).
+Generation goes through LiteLLM. By default the tiers are Groq-hosted `groq/openai/gpt-oss-120b` (complex/long-doc) and `groq/openai/gpt-oss-20b` (simple/classify), so set `GROQ_API_KEY`. Override any tier with `GROQ_MODEL_SIMPLE`, `GROQ_MODEL_COMPLEX`, `GROQ_MODEL_LONG_DOC`, `GROQ_MODEL_CLASSIFY`, `GROQ_MODEL_OFFLINE`, or set `LLM_PROVIDER=openrouter` with `OPENROUTER_MODEL_*`. Embeddings and reranking are local (`BAAI/bge-m3`, `BAAI/bge-reranker-v2-m3`) and need no API key. Set `OLLAMA_API_BASE` if you want the `offline` tier to stay on a local Ollama server.
 
 ### 2. Configure environment
 
