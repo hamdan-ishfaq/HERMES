@@ -21,7 +21,6 @@ HERMES is the **Applied AI / agentic RAG** portfolio star (foundation-model stac
 
 **Not claimed here:** SSO/SCIM/WORM legal platforms, multi-tenant production SaaS, or user-profile personalization (see NEXUS). JurisGuard remains a supporting on-prem / air-gap story elsewhere — not this repo’s lead claim.
 
-See [`docs/CV_BULLETS.md`](docs/CV_BULLETS.md) for ready-to-paste CV lines.
 
 ---
 
