@@ -13,30 +13,28 @@ This is the difference between:
 import os
 import json
 import hashlib
-import httpx
 from dotenv import load_dotenv
+
+from src.rag.embeddings import dense_embed
 
 load_dotenv()
 
 SIMILARITY_THRESHOLD = 0.95
 CACHE_TTL = 60 * 60 * 24  # 24 hours in seconds
-EMBEDDING_MODEL = "nomic-embed-text"
 
 
 def _embed_single(text: str) -> list[float]:
-    """Embed a single text using Ollama."""
-    base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
-    resp = httpx.post(
-        f"{base}/api/embed",
-        json={"model": EMBEDDING_MODEL, "input": text},
-        timeout=float(os.getenv("OLLAMA_EMBED_TIMEOUT", "120")),
-    )
-    resp.raise_for_status()
-    return resp.json()["embeddings"][0]
+    """Embed a single text using the configured dense embedding provider."""
+    return dense_embed([text])[0]
 
 
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
     """Compute cosine similarity between two vectors."""
+    if len(a) != len(b):
+        raise ValueError(
+            f"vector length mismatch: {len(a)} != {len(b)}; "
+            "cached embeddings were written by a different EMBED_MODEL"
+        )
     dot = sum(x * y for x, y in zip(a, b))
     mag_a = sum(x ** 2 for x in a) ** 0.5
     mag_b = sum(x ** 2 for x in b) ** 0.5
@@ -94,7 +92,9 @@ class SemanticCache:
                 if similarity > best_similarity:
                     best_similarity = similarity
                     best_entry = entry
-            except Exception:
+            except ValueError:
+                raise
+            except (json.JSONDecodeError, KeyError, TypeError):
                 continue
 
         if best_similarity >= SIMILARITY_THRESHOLD and best_entry:
