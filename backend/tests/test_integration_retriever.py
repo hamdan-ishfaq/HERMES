@@ -10,8 +10,9 @@ They are marked `integration` and skipped in the default/CI run. Run locally
 with the stack up:
 
     docker compose up -d qdrant redis
-    # ollama serving nomic-embed-text on $OLLAMA_API_BASE
-    uv run pytest -m integration -v
+    # Ollama is only needed if EMBED_MODEL points at it; the default local
+    # BGE-m3 embedder needs no server.
+    DATABASE_URL=...hermes_test uv run pytest -m integration -v
 
 Fixtures: none from conftest — these tests manage their own Qdrant/Redis state
 and skip automatically when the external stack is unreachable.
@@ -27,14 +28,34 @@ pytestmark = pytest.mark.integration
 
 
 def _stack_available() -> bool:
-    """True only if both Qdrant and Ollama embeddings are reachable."""
+    """
+    True when Qdrant is reachable and the configured embedder can produce vectors.
+
+    Ollama is only required when EMBED_MODEL actually points at it. The default
+    embedder is the local BGE-m3 sentence-transformer, so requiring an Ollama
+    embedding server here silently skipped the whole file on a machine that was
+    otherwise ready to run it.
+    """
     qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
-    ollama_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
     try:
         httpx.get(f"{qdrant_url}/collections", timeout=3).raise_for_status()
+    except Exception:
+        return False
+
+    if os.getenv("EMBED_MODEL", "bge-m3").strip().lower() in ("bge-m3", "bge_m3", "bge"):
+        try:
+            from src.rag.embeddings import dense_embed
+            dense_embed(["ping"])
+            return True
+        except Exception:
+            return False
+
+    ollama_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+    model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+    try:
         httpx.post(
             f"{ollama_base}/api/embed",
-            json={"model": "nomic-embed-text", "input": "ping"},
+            json={"model": model, "input": "ping"},
             timeout=15,
         ).raise_for_status()
         return True
@@ -44,7 +65,7 @@ def _stack_available() -> bool:
 
 requires_stack = pytest.mark.skipif(
     not _stack_available(),
-    reason="Qdrant + Ollama (nomic-embed-text) must be running for integration tests",
+    reason="Qdrant must be running, plus Ollama if EMBED_MODEL points at it",
 )
 
 
@@ -92,9 +113,16 @@ def _clear_hermes_keys(r) -> int:
 
 @requires_stack
 def test_semantic_cache_round_trip():
-    """Store an answer in SemanticCache and verify a paraphrased query hits the cache."""
+    """
+    Store an answer in SemanticCache and read it back with a reworded query.
+
+    The reworded query has to clear SIMILARITY_THRESHOLD (0.95) to be a hit.
+    This previously used "Can you explain retrieval augmented generation?",
+    which BGE-m3 scores at 0.9135 against the stored question -- a legitimate
+    miss, so the test asserted behaviour the cache was never meant to have.
+    """
     import redis
-    from src.rag.cache import SemanticCache
+    from src.rag.cache import SIMILARITY_THRESHOLD, SemanticCache
 
     r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
     _clear_hermes_keys(r)
@@ -105,9 +133,34 @@ def test_semantic_cache_round_trip():
         "citations": [{"source": "itest", "context": "..."}],
         "contexts": [],
     }
-    cache.set("What is retrieval augmented generation?", payload)
+    stored = "What is retrieval augmented generation?"
+    cache.set(stored, payload)
 
-    hit = cache.get("Can you explain retrieval augmented generation?")
-    assert hit is not None
+    # A genuine rephrasing (measured 0.9744, above the threshold) must hit.
+    hit = cache.get("What does retrieval augmented generation mean?")
+    assert hit is not None, "reworded query above the threshold failed to hit"
     assert hit.get("cache_hit") is True
     assert hit["answer"] == payload["answer"]
+
+    # A differently-worded question (measured 0.9135, below it) must miss,
+    # so the cache cannot serve a stale answer to an unrelated question.
+    miss = cache.get("Explain retrieval augmented generation")
+    assert miss is None or miss.get("cache_hit") is not True
+
+
+@requires_stack
+def test_semantic_cache_scoped_cleanup_leaves_foreign_keys():
+    """The scoped cleanup used by this suite must not delete non-hermes keys."""
+    import redis
+    from src.rag.cache import SemanticCache
+
+    r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
+    r.set("e2e:canary:must-survive", "1")
+    try:
+        SemanticCache().set("What is retrieval augmented generation?",
+                            {"answer": "x", "citations": [], "contexts": []})
+        deleted = _clear_hermes_keys(r)
+        assert deleted >= 1
+        assert r.get("e2e:canary:must-survive") == b"1"
+    finally:
+        r.delete("e2e:canary:must-survive")
