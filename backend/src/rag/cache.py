@@ -13,11 +13,14 @@ This is the difference between:
 import os
 import json
 import hashlib
+import logging
 from dotenv import load_dotenv
 
 from src.rag.embeddings import dense_embed
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 SIMILARITY_THRESHOLD = 0.95
 CACHE_TTL = 60 * 60 * 24  # 24 hours in seconds
@@ -76,26 +79,38 @@ class SemanticCache:
 
         best_similarity = 0.0
         best_entry = None
+        skipped_dimension = 0
 
         for entry_json in index:
             try:
                 entry = json.loads(entry_json)
-                similarity = _cosine_similarity(query_vec, entry["embedding"])
-                
-                # Instantly return near-perfect matches to prioritize newest entries
-                if similarity >= 0.99:
-                    self.hits += 1
-                    print(f"Cache HIT (similarity: {similarity:.4f})")
-                    return {**entry["result"], "cache_hit": True,
-                            "similarity": round(similarity, 4)}
-
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    best_entry = entry
-            except ValueError:
-                raise
-            except (json.JSONDecodeError, KeyError, TypeError):
+            except (json.JSONDecodeError, TypeError):
                 continue
+            if "embedding" not in entry or "result" not in entry:
+                continue
+            try:
+                similarity = _cosine_similarity(query_vec, entry["embedding"])
+            except ValueError:
+                skipped_dimension += 1
+                continue
+
+            # Instantly return near-perfect matches to prioritize newest entries
+            if similarity >= 0.99:
+                self.hits += 1
+                print(f"Cache HIT (similarity: {similarity:.4f})")
+                return {**entry["result"], "cache_hit": True,
+                        "similarity": round(similarity, 4)}
+
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_entry = entry
+
+        if skipped_dimension > 0:
+            logger.warning(
+                "semantic cache: skipped %d entries with mismatched embedding "
+                "dimension; flush hermes:cache:* keys",
+                skipped_dimension,
+            )
 
         if best_similarity >= SIMILARITY_THRESHOLD and best_entry:
             self.hits += 1
