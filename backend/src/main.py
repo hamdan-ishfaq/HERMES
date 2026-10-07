@@ -28,7 +28,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.db import create_tables
-from src.routers import auth, ingest, research, eval
+from src.routers import auth, ingest, research, eval, e2e
 
 
 @asynccontextmanager
@@ -72,6 +72,7 @@ app.include_router(auth.router)
 app.include_router(ingest.router)
 app.include_router(research.router)
 app.include_router(eval.router)
+app.include_router(e2e.router)
 
 
 @app.get("/health")

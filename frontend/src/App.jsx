@@ -105,6 +105,18 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/e2e"
+        element={
+          <PrivateRoute>
+            <MainLayout>
+              <React.Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500">Loading...</span></div>}>
+                <E2EView />
+              </React.Suspense>
+            </MainLayout>
+          </PrivateRoute>
+        }
+      />
 
       {/* Catch-all — send unknown paths back to Research */}
       <Route path="*" element={<Navigate to="/" />} />

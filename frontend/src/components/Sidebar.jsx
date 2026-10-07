@@ -12,6 +12,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { Search, Database, BarChart3, LogOut, Hexagon } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import clsx from "clsx";
 
@@ -20,6 +21,7 @@ const navItems = [
   { name: "Research", path: "/", icon: Search },
   { name: "Knowledge Base", path: "/knowledge-base", icon: Database },
   { name: "Analytics", path: "/analytics", icon: BarChart3 },
+  { name: "E2E Tests", path: "/e2e", icon: FlaskConical },
 ];
 
 /**
