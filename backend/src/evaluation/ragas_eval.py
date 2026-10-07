@@ -110,23 +110,20 @@ def _build_dataset(n_questions: int) -> Dataset:
 
 
 def _build_ragas_llm():
-    """RAGAS judge — OpenRouter when configured, else local Ollama."""
+    """RAGAS judge — any LiteLLM-hosted provider, else local Ollama."""
     judge = os.getenv(
         "HERMES_RAGAS_JUDGE",
         "openrouter/google/gemini-2.5-flash-lite"
         if os.getenv("LLM_PROVIDER") == "openrouter"
         else "llama3.1:8b",
     )
-    use_openrouter = (
-        judge.startswith("openrouter/")
-        or (os.getenv("OPENROUTER_API_KEY") and os.getenv("LLM_PROVIDER") == "openrouter")
-    )
-    if use_openrouter:
-        if not judge.startswith("openrouter/"):
-            judge = f"openrouter/{judge}"
+    # litellm routes these prefixes itself and picks up the matching *_API_KEY
+    # from the environment, so a hosted judge needs no bespoke client.
+    hosted_prefixes = ("openrouter/", "groq/", "together_ai/", "fireworks_ai/")
+    if judge.startswith(hosted_prefixes):
         from langchain_community.chat_models import ChatLiteLLM
 
-        print(f"RAGAS judge: {judge} (OpenRouter)")
+        print(f"RAGAS judge: {judge} (LiteLLM hosted)")
         return LangchainLLMWrapper(ChatLiteLLM(model=judge, temperature=0))
 
     ollama_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
